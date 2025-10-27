@@ -1,0 +1,258 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Movie Library</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #141414;
+            color: #fff;
+        }
+        .movie-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+        @media (max-width: 600px) {
+            .movie-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        .movie-tile {
+            position: relative;
+            cursor: pointer;
+            overflow: hidden;
+            border-radius: 10px;
+        }
+        .movie-tile img {
+            width: 100%;
+            height: auto;
+            object-fit: cover;
+            transition: transform 0.3s;
+        }
+        .movie-tile:hover img {
+            transform: scale(1.1);
+        }
+        .movie-tile .details-btn {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .movie-tile:hover .details-btn {
+            opacity: 1;
+        }
+        .form-control {
+            background-color: #333;
+            color: #fff;
+            border: 1px solid #555;
+        }
+        .pagination .page-link {
+            background-color: #222;
+            border-color: #333;
+            color: #fff;
+        }
+        .pagination .page-item.active .page-link {
+            background-image: linear-gradient(to right, #e50914, #f40612);
+            border: none;
+        }
+        .card-text {
+            color: #fff;
+        }
+        .card-title {
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>Welcome, {{ first_name }}!</h1>
+            <a href="/others" class="btn btn-primary">Others</a>
+            <input id="search-input" class="form-control w-50" type="search" placeholder="Search" aria-label="Search">
+        </div>
+
+        <div id="movie-grid" class="movie-grid"></div>
+
+        <nav aria-label="Page navigation">
+            <ul id="pagination" class="pagination justify-content-center mt-4"></ul>
+        </nav>
+
+        <hr class="my-5">
+
+        <div class="comments-section">
+            <h2>Comments</h2>
+            <div id="comments-list" class="mb-4"></div>
+            <nav aria-label="Comment navigation">
+                <ul id="comments-pagination" class="pagination justify-content-center"></ul>
+            </nav>
+            <div class="add-comment mt-4">
+                <textarea id="comment-input" class="form-control mb-2" rows="3" placeholder="Add a comment..."></textarea>
+                <button id="submit-comment" class="btn btn-primary">Submit</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const posterBaseUrl = "{{ poster_base_url }}";
+        const searchInput = document.getElementById('search-input');
+        const commentInput = document.getElementById('comment-input');
+        const submitCommentBtn = document.getElementById('submit-comment');
+
+        async function fetchMovies(page = 1, search = '') {
+            try {
+                const response = await fetch(`/api/movies?page=${page}&search=${search}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    displayMovies(data.movies);
+                    setupPagination(data.total_pages, data.current_page, search);
+                } else {
+                    console.error('Failed to fetch movies');
+                }
+            } catch (error) {
+                console.error('Error fetching movies:', error);
+            }
+        }
+
+        function displayMovies(movies) {
+            const grid = document.getElementById('movie-grid');
+            grid.innerHTML = '';
+            movies.forEach(movie => {
+                const tile = document.createElement('div');
+                tile.className = 'movie-tile';
+
+                const img = document.createElement('img');
+                img.src = movie.poster_path ? `${posterBaseUrl}${movie.poster_path}` : 'https://via.placeholder.com/200x300';
+                tile.appendChild(img);
+
+                const detailsBtn = document.createElement('a');
+                detailsBtn.href = `/details/${movie.tmdb_id}?tmdb_type=${movie.tmdb_type}`;
+                detailsBtn.className = 'btn btn-success details-btn';
+                detailsBtn.textContent = 'Details';
+                tile.appendChild(detailsBtn);
+
+                grid.appendChild(tile);
+            });
+        }
+
+        function setupPagination(totalPages, currentPage, search) {
+            const pagination = document.getElementById('pagination');
+            pagination.innerHTML = '';
+
+            if (currentPage > 1) {
+                const prev = document.createElement('li');
+                prev.className = 'page-item';
+                prev.innerHTML = `<a class="page-link" href="#" onclick="fetchMovies(${currentPage - 1}, '${search}')">Previous</a>`;
+                pagination.appendChild(prev);
+            }
+
+            for (let i = Math.max(1, currentPage - 1); i <= Math.min(totalPages, currentPage + 1); i++) {
+                const page = document.createElement('li');
+                page.className = `page-item ${i === currentPage ? 'active' : ''}`;
+                page.innerHTML = `<a class="page-link" href="#" onclick="fetchMovies(${i}, '${search}')">${i}</a>`;
+                pagination.appendChild(page);
+            }
+
+            if (currentPage < totalPages) {
+                const next = document.createElement('li');
+                next.className = 'page-item';
+                next.innerHTML = `<a class="page-link" href="#" onclick="fetchMovies(${currentPage + 1}, '${search}')">Next</a>`;
+                pagination.appendChild(next);
+            }
+        }
+
+        searchInput.addEventListener('input', (e) => {
+            fetchMovies(1, e.target.value);
+        });
+
+        async function fetchComments(page = 1) {
+            try {
+                const response = await fetch(`/api/comments?page=${page}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    displayComments(data.comments);
+                    setupCommentsPagination(data.total_pages, data.current_page);
+                    if (page > 1) {
+                        window.scrollTo(0, 0);
+                    }
+                } else {
+                    console.error('Failed to fetch comments');
+                }
+            } catch (error) {
+                console.error('Error fetching comments:', error);
+            }
+        }
+
+        function displayComments(comments) {
+            const commentsList = document.getElementById('comments-list');
+            commentsList.innerHTML = '';
+            comments.forEach(comment => {
+                const commentDiv = document.createElement('div');
+                commentDiv.className = 'card bg-dark mb-2';
+                commentDiv.innerHTML = `
+                    <div class="card-body">
+                        <h6 class="card-title">${comment.first_name}</h6>
+                        <p class="card-text">${comment.comment}</p>
+                    </div>
+                `;
+                commentsList.appendChild(commentDiv);
+            });
+        }
+
+        function setupCommentsPagination(totalPages, currentPage) {
+            const pagination = document.getElementById('comments-pagination');
+            pagination.innerHTML = '';
+
+            if (currentPage > 1) {
+                const prev = document.createElement('li');
+                prev.className = 'page-item';
+                prev.innerHTML = `<a class="page-link" href="#" onclick="fetchComments(${currentPage - 1})">Previous</a>`;
+                pagination.appendChild(prev);
+            }
+
+            for (let i = Math.max(1, currentPage - 2); i <= Math.min(totalPages, currentPage + 2); i++) {
+                const page = document.createElement('li');
+                page.className = `page-item ${i === currentPage ? 'active' : ''}`;
+                page.innerHTML = `<a class="page-link" href="#" onclick="fetchComments(${i})">${i}</a>`;
+                pagination.appendChild(page);
+            }
+
+            if (currentPage < totalPages) {
+                const next = document.createElement('li');
+                next.className = 'page-item';
+                next.innerHTML = `<a class="page-link" href="#" onclick="fetchComments(${currentPage + 1})">Next</a>`;
+                pagination.appendChild(next);
+            }
+        }
+
+        submitCommentBtn.addEventListener('click', async () => {
+            const commentText = commentInput.value.trim();
+            if (commentText) {
+                try {
+                    const response = await fetch('/api/comments', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ comment: commentText })
+                    });
+                    if (response.ok) {
+                        commentInput.value = '';
+                        fetchComments();
+                    } else {
+                        console.error('Failed to submit comment');
+                    }
+                } catch (error) {
+                    console.error('Error submitting comment:', error);
+                }
+            }
+        });
+
+        fetchMovies();
+        fetchComments();
+    </script>
+</body>
+</html>
