@@ -174,12 +174,12 @@ async def get_others(page: int = 1, search: str = None, sort: str = "recent", us
 async def create_comment(request: Request, user_id: int = Depends(get_current_user)):
     data = await request.json()
     comment_text = data.get("comment")
-
+    user_name = await get_user_firstname(user_id)
     if not comment_text:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Comment text cannot be empty.")
 
     comment = {
-        "user_id": user_id,
+        "user_name": user_name,
         "comment": comment_text,
         "created_at": datetime.now(timezone.utc)
     }
@@ -194,7 +194,7 @@ async def get_comments(page: int = 1, user_id: int = Depends(get_current_user)):
     comments = []
     for comment in comments_col.find().sort("_id", -1).skip(skip).limit(page_size):
         comment["_id"] = str(comment["_id"])
-        comment["first_name"] = await get_user_firstname(comment["user_id"])
+        comment["first_name"] = comment["user_name"]
         comments.append(comment)
 
     total_comments = comments_col.count_documents({})
