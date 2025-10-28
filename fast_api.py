@@ -1,6 +1,6 @@
 import re
 import base64
-from fastapi import FastAPI, Request, Depends, HTTPException, status
+from fastapi import FastAPI, Request, Depends, HTTPException, status, Header
 from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -20,26 +20,32 @@ templates = Jinja2Templates(directory="web/templates")
 
 api.add_middleware(
     CORSMiddleware,
-    allow_origins=[f"{MY_DOMAIN}"],
+    allow_origins=["*"],  # Allow all origins
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Dependency to get user_id from cookie
-async def get_current_user(request: Request):
-    user_id = request.cookies.get("user_id")
-    if user_id:
-        try:
-            return int(user_id)
-        except (ValueError, TypeError):
-            return None
-    return None
+# Dependency to get user_id from Authorization header
+async def get_current_user(authorization: str = Header(None)):
+    if not authorization:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authorization header missing")
+
+    parts = authorization.split()
+    if len(parts) != 2 or parts[0].lower() != "bearer":
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authorization scheme")
+
+    token = parts[1]
+
+    try:
+        user_id = int(token)
+        if not is_user_authorized(user_id):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not authorized")
+        return user_id
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token format")
 
 
-@api.get("/login", response_class=HTMLResponse)
-async def login_page(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request})
 
 @api.post("/api/authorize")
 async def api_authorize(request: Request):
@@ -60,31 +66,20 @@ async def api_authorize(request: Request):
             detail="User not authorized.",
         )
 
-    response = JSONResponse(content={"message": "Authorization successful"})
-    response.set_cookie(key="user_id", value=str(user_id), httponly=True, samesite="strict")
-    return response
+    # Instead of setting a cookie, return the user_id as a token
+    return JSONResponse(content={"token": str(user_id)})
 
 
-
-@api.get("/", response_class=HTMLResponse)
-async def index_page(request: Request, user_id: int = Depends(get_current_user)):
-    if not user_id:
-        return RedirectResponse(url="/login")
-
+@api.get("/api/user/me")
+async def get_user_me(user_id: int = Depends(get_current_user)):
     first_name = await get_user_firstname(user_id)
-    return templates.TemplateResponse("index.html", {
-        "request": request,
-        "user_id": user_id,
-        "first_name": first_name,
-        "poster_base_url": POSTER_BASE_URL
-    })
+    return JSONResponse(content={"first_name": first_name})
+
+
 
 
 @api.get("/api/movies")
-async def get_movies(request: Request, page: int = 1, search: str = None, category: str = None, sort: str = "year", user_id: int = Depends(get_current_user)):
-    if not user_id:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
-
+async def get_movies(page: int = 1, search: str = None, category: str = None, sort: str = "year", user_id: int = Depends(get_current_user), tmdb_id: int = None, tmdb_type: str = None):
     page_size = 10
     skip = (page - 1) * page_size
 
@@ -93,6 +88,9 @@ async def get_movies(request: Request, page: int = 1, search: str = None, catego
         query["title"] = {"$regex": re.escape(search), "$options": "i"}
     if category:
         query["tmdb_type"] = category
+    if tmdb_id and tmdb_type:
+        query["tmdb_id"] = tmdb_id
+        query["tmdb_type"] = tmdb_type
 
     sort_order = []
     if sort == "rating":
@@ -115,35 +113,10 @@ async def get_movies(request: Request, page: int = 1, search: str = None, catego
         "current_page": page
     }
 
-@api.get("/details/{tmdb_id}", response_class=HTMLResponse)
-async def movie_details(request: Request, tmdb_id: str, tmdb_type: str, user_id: int = Depends(get_current_user)):
-    if not user_id:
-        return RedirectResponse(url="/login")
-
-    try:
-        tmdb_id = int(tmdb_id)
-    except (ValueError, TypeError):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid TMDB ID")
-
-    details = tmdb_col.find_one({"tmdb_id": tmdb_id, "tmdb_type": tmdb_type})
-
-    if not details:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Details not found")
-
-    details["_id"] = str(details["_id"])
-
-    return templates.TemplateResponse("details.html", {
-        "request": request,
-        "details": details,
-        "poster_base_url": POSTER_BASE_URL,
-    })
 
 
 @api.get("/api/details/{tmdb_id}")
-async def get_movie_details(request: Request, tmdb_id: str, tmdb_type: str, page: int = 1, user_id: int = Depends(get_current_user)):
-    if not user_id:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
-
+async def get_movie_details(tmdb_id: str, tmdb_type: str, page: int = 1, user_id: int = Depends(get_current_user)):
     try:
         tmdb_id = int(tmdb_id)
     except (ValueError, TypeError):
@@ -166,21 +139,9 @@ async def get_movie_details(request: Request, tmdb_id: str, tmdb_type: str, page
         "current_page": page
     }
 
-@api.get("/others", response_class=HTMLResponse)
-async def others_page(request: Request, user_id: int = Depends(get_current_user)):
-    if not user_id:
-        return RedirectResponse(url="/login")
-
-    return templates.TemplateResponse("others.html", {
-        "request": request,
-        "user_id": user_id
-    })
 
 @api.get("/api/others")
-async def get_others(request: Request, page: int = 1, search: str = None, sort: str = "recent", user_id: int = Depends(get_current_user)):
-    if not user_id:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
-
+async def get_others(page: int = 1, search: str = None, sort: str = "recent", user_id: int = Depends(get_current_user)):
     page_size = 10
     skip = (page - 1) * page_size
 
@@ -208,9 +169,6 @@ async def get_others(request: Request, page: int = 1, search: str = None, sort: 
 
 @api.post("/api/comments")
 async def create_comment(request: Request, user_id: int = Depends(get_current_user)):
-    if not user_id:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
-
     data = await request.json()
     comment_text = data.get("comment")
 
@@ -226,10 +184,7 @@ async def create_comment(request: Request, user_id: int = Depends(get_current_us
     return {"message": "Comment added successfully"}
 
 @api.get("/api/comments")
-async def get_comments(request: Request, page: int = 1, user_id: int = Depends(get_current_user)):
-    if not user_id:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
-
+async def get_comments(page: int = 1, user_id: int = Depends(get_current_user)):
     page_size = 5
     skip = (page - 1) * page_size
 
