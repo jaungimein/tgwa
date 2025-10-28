@@ -433,6 +433,50 @@ async def stats_command(client, message: Message):
     except Exception as e:
         logger.error(f"Error in stats_command: {e}")
 
+@bot.on_message(filters.private & filters.command("update") & filters.user(OWNER_ID))
+async def update_tmdb_info(client, message):
+    try:
+        args = message.text.split(maxsplit=3)
+        if len(args) < 4:
+            await message.reply_text("Usage: /update <tmdb_link> <start_link> <end_link>")
+            return
+
+        tmdb_link, start_link, end_link = args[1], args[2], args[3]
+
+        try:
+            tmdb_type, tmdb_id = await extract_tmdb_link(tmdb_link)
+        except ValueError as e:
+            await message.reply_text(f"Invalid TMDB link: {e}")
+            return
+
+        try:
+            start_channel_id, start_msg_id = extract_channel_and_msg_id(start_link)
+            end_channel_id, end_msg_id = extract_channel_and_msg_id(end_link)
+        except ValueError as e:
+            await message.reply_text(f"Invalid Telegram link: {e}")
+            return
+
+        if start_channel_id != end_channel_id:
+            await message.reply_text("Start and end links must be from the same channel.")
+            return
+
+        if start_msg_id > end_msg_id:
+            start_msg_id, end_msg_id = end_msg_id, start_msg_id
+
+        result = files_col.update_many(
+            {
+                "channel_id": start_channel_id,
+                "message_id": {"$gte": start_msg_id, "$lte": end_msg_id}
+            },
+            {"$set": {"tmdb_id": tmdb_id, "tmdb_type": tmdb_type}}
+        )
+
+        await message.reply_text(f"✅ Successfully updated {result.modified_count} files with TMDB ID {tmdb_id} ({tmdb_type}).")
+
+    except Exception as e:
+        logger.error(f"Error in update_tmdb_info: {e}")
+        await message.reply_text(f"An error occurred: {e}")
+
 @bot.on_message(filters.private & filters.command("tmdb") & filters.user(OWNER_ID))
 async def tmdb_command(client, message):
     try:
