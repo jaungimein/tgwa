@@ -192,7 +192,7 @@ async def index_channel_files(client, message):
             ids = list(range(batch_start, batch_end + 1))
             messages = []
             try:
-                messages = await client.get_messages(channel_id, ids)
+                messages = await safe_api_call(client.get_messages(channel_id, ids))
             except Exception as e:
                 logger.warning(f"Could not get messages in batch {batch_start}-{batch_end}: {e}")
 
