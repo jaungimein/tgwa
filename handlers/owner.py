@@ -354,11 +354,11 @@ async def broadcast_handler(client, message: Message):
         broadcasting = True
 
         status_message = await message.reply_text(
-            f"📢 **Broadcast in progress...**\n\n"
-            f"👥 **Total Users:** {total_users}\n"
-            f"✅ **Sent:** {sent_count}\n"
-            f"❌ **Failed:** {failed_count}\n"
-            f"🗑️ **Removed:** {removed_count}",
+            f"📢 Broadcast in progress...\n\n"
+            f"👥 Total Users: {total_users}\n"
+            f"✅ Sent: {sent_count}\n"
+            f"❌ Failed: {failed_count}\n"
+            f"🗑️ Removed: {removed_count}",
             reply_markup=InlineKeyboardMarkup(
                 [[InlineKeyboardButton("Cancel", callback_data="cancel_broadcast")]]
             )
@@ -387,22 +387,22 @@ async def broadcast_handler(client, message: Message):
 
             if i % 10 == 0:
                 await status_message.edit_text(
-                    f"📢 **Broadcast in progress...**\n\n"
-                    f"👥 **Total Users:** {total_users}\n"
-                    f"✅ **Sent:** {sent_count}\n"
-                    f"❌ **Failed:** {failed_count}\n"
-                    f"🗑️ **Removed:** {removed_count}",
+                    f"📢 Broadcast in progress...\n\n"
+                    f"👥 Total Users: {total_users}\n"
+                    f"✅ Sent: {sent_count}\n"
+                    f"❌ Failed: {failed_count}\n"
+                    f"🗑️ Removed: {removed_count}",
                     reply_markup=InlineKeyboardMarkup(
                         [[InlineKeyboardButton("Cancel", callback_data="cancel_broadcast")]]
                     )
                 )
         else:
             await status_message.edit_text(
-                f"✅ **Broadcast finished!**\n\n"
-                f"👥 **Total Users:** {total_users}\n"
-                f"✅ **Sent:** {sent_count}\n"
-                f"❌ **Failed:** {failed_count}\n"
-                f"🗑️ **Removed:** {removed_count}"
+                f"✅ Broadcast finished!**\n\n"
+                f"👥 Total Users: {total_users}\n"
+                f"✅ Sent: {sent_count}\n"
+                f"❌ Failed: {failed_count}\n"
+                f"🗑️ Removed: {removed_count}"
             )
 
         broadcasting = False
@@ -537,7 +537,7 @@ async def tmdb_command(client, message):
         upsert_tmdb_info(tmdb_id, tmdb_type, poster_path, name, year, rating, plot, trailer_url, imdb_id)
         
         keyboard = InlineKeyboardMarkup(
-            [[InlineKeyboardButton("🎥 Trailer", url=trailer_url)]]) if trailer else None
+            [[InlineKeyboardButton("🎥 Trailer", url=trailer_url)]]) if trailer_url else None
         if poster_url and SEND_UPDATES:
             await safe_api_call(
                 client.send_photo(
