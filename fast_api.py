@@ -71,10 +71,7 @@ async def api_authorize(request: Request):
 
 @api.get("/api/user/me")
 async def get_user_me(user_id: int = Depends(get_current_user)):
-    if user_id == OWNER_ID:
-        first_name = "ADMIN"
-    else:
-        first_name = await get_user_firstname(user_id)
+    first_name = await get_user_firstname(user_id)
     return JSONResponse(content={"first_name": first_name})
 
 
