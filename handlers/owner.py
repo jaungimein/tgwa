@@ -571,7 +571,7 @@ async def tmdb_command(client, message):
     except ValueError as e:
         await message.reply_text(f"Error: {e}")
     except Exception as e:
-        logging.error(f"Error in tmdb_command: {e})
+        logging.error(f"Error in tmdb_command: {e}")
         
 @bot.on_message(filters.command("op") & filters.chat(LOG_CHANNEL_ID))
 async def chatop_handler(client, message: Message):
