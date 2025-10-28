@@ -471,7 +471,7 @@ async def stats_command(client, message: Message):
     except Exception as e:
         logger.error(f"Error in stats_command: {e}")
 
-@bot.on_message(filters.private & filters.command("update") & filters.user(OWNER_ID))
+@bot.on_message(filters.private & filters.command("up") & filters.user(OWNER_ID))
 async def update_tmdb_info(client, message):
     try:
         args = message.text.split(maxsplit=3)
