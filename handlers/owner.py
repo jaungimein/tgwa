@@ -8,7 +8,7 @@ from pyrogram.errors import UserIsBlocked, InputUserDeactivated, ListenerTimeout
 from pyrogram import filters, enums
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 
-from config import OWNER_ID, LOG_CHANNEL_ID, UPDATE_CHANNEL_ID, MY_DOMAIN
+from config import OWNER_ID, LOG_CHANNEL_ID, UPDATE_CHANNEL_ID, MY_DOMAIN, SEND_UPDATES
 from db import files_col, allowed_channels_col, auth_users_col, users_col, tmdb_col, db
 from utility import (
     extract_channel_and_msg_id,
@@ -21,7 +21,8 @@ from utility import (
     restore_tmdb_photos,
     human_readable_size,
     extract_tmdb_link,
-    get_info,
+    get_info, 
+    upsert_tmdb_info
 )
 from app import bot
 
@@ -470,27 +471,26 @@ async def tmdb_command(client, message):
 
         tmdb_link = message.command[1]
         tmdb_type, tmdb_id = await extract_tmdb_link(tmdb_link)
-        result = await get_info(tmdb_type, tmdb_id)
-        poster_url = result.get('poster_url')
-        trailer = result.get('trailer_url')
-        info = result.get('message')
-        update = {
-            "$setOnInsert": {"tmdb_id": tmdb_id, "tmdb_type": tmdb_type}
-        }
-        tmdb_col.update_one(
-            {"tmdb_id": tmdb_id, "tmdb_type": tmdb_type},
-            update,
-            upsert=True
-        )
-
+        info = await get_info(tmdb_type, tmdb_id)
+        poster_url = info.get('poster_url')
+        poster_path = info.get('poster_path')
+        trailer_url = info.get('trailer_url')
+        message = info.get('message')
+        name = info.get('title')
+        year = info.get('year')
+        rating = info.get('rating')
+        plot = info.get("plot")
+        imdb_id = info.get("imdb_id")
+        upsert_tmdb_info(tmdb_id, tmdb_type, poster_path, name, year, rating, plot, trailer_url, imdb_id)
+        
         keyboard = InlineKeyboardMarkup(
             [[InlineKeyboardButton("🎥 Trailer", url=trailer)]]) if trailer else None
-        if poster_url:
+        if poster_url and SEND_UPDATES:
             await safe_api_call(
                 client.send_photo(
                     UPDATE_CHANNEL_ID,
                     photo=poster_url,
-                    caption=info,
+                    caption=message,
                     parse_mode=enums.ParseMode.HTML,
                     reply_markup=keyboard
                 )
