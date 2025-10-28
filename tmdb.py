@@ -137,6 +137,8 @@ async def get_info(tmdb_type, tmdb_id):
                 poster_path = data.get('poster_path', None)
                 if 'backdrops' in images and images['backdrops']:
                     backdrop_path = images['backdrops'][0]['file_path']
+                else:
+                    backdrop_path = None
                 path = backdrop_path or poster_path
                 poster_url = f"https://image.tmdb.org/t/p/original{path}" if path else None
 
