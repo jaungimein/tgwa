@@ -10,7 +10,7 @@ from utility import is_user_authorized, get_user_firstname, build_search_pipelin
 from db import tmdb_col, files_col, comments_col
 from tmdb import POSTER_BASE_URL
 from app import bot
-from config import TMDB_CHANNEL_ID
+from config import TMDB_CHANNEL_ID, OWNER_ID
 from datetime import datetime, timezone
 
 api = FastAPI()
@@ -71,7 +71,10 @@ async def api_authorize(request: Request):
 
 @api.get("/api/user/me")
 async def get_user_me(user_id: int = Depends(get_current_user)):
-    first_name = await get_user_firstname(user_id)
+    if user_id == OWNER_ID:
+        first_name = "ADMIN"
+    else:
+        first_name = await get_user_firstname(user_id)
     return JSONResponse(content={"first_name": first_name})
 
 
