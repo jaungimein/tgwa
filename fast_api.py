@@ -15,9 +15,6 @@ from datetime import datetime, timezone
 
 api = FastAPI()
 
-api.mount("/static", StaticFiles(directory="web/static"), name="static")
-templates = Jinja2Templates(directory="web/templates")
-
 api.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Allow all origins
