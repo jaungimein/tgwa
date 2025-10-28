@@ -223,6 +223,8 @@ async def get_user_firstname(user_id: int) -> str:
     """Gets a user's first name from the bot's API."""
     from app import bot
     try:
+        if user_id == OWNER_ID:
+          return "ADMIN"
         user = await bot.get_users(user_id)
         return user.first_name
     except Exception as e:
