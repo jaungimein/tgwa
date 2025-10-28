@@ -537,7 +537,7 @@ async def tmdb_command(client, message):
         upsert_tmdb_info(tmdb_id, tmdb_type, poster_path, name, year, rating, plot, trailer_url, imdb_id)
         
         keyboard = InlineKeyboardMarkup(
-            [[InlineKeyboardButton("🎥 Trailer", url=trailer)]]) if trailer else None
+            [[InlineKeyboardButton("🎥 Trailer", url=trailer_url)]]) if trailer else None
         if poster_url and SEND_UPDATES:
             await safe_api_call(
                 client.send_photo(
