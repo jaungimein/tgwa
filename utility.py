@@ -591,7 +591,7 @@ async def process_tmdb_info(bot, file_info):
         return tmdb_id, tmdb_type
 
     except Exception as e:
-        logger.info(f"TMDB Info not found for {file_info['file_name']}: {e}")
+        await safe_api_call(bot.send_message(LOG_CHANNEL_ID, f"TMDB Info not found for {file_info['file_name']}: {e}"))
         return None
 
 
