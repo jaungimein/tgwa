@@ -549,6 +549,7 @@ async def process_tmdb_info(bot, file_info):
             result = await get_movie_id(title, year)
 
         if not result:
+            await safe_api_call(bot.send_message(LOG_CHANNEL_ID, f"TMDB Info not found for {file_info['file_name']}: {e}"))
             return None
           
         tmdb_id, tmdb_type = result['id'], result['media_type']
