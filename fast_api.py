@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
-from config import MY_DOMAIN
+from config import MY_DOMAIN, CF_DOMAIN
 from utility import is_user_authorized, get_user_firstname, build_search_pipeline
 from db import tmdb_col, files_col, comments_col
 from tmdb import POSTER_BASE_URL
@@ -17,7 +17,7 @@ api = FastAPI()
 
 api.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins
+    allow_origins=[f"{CF_DOMAIN}"],  # Allow all origins
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
