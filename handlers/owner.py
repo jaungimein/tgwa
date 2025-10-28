@@ -28,6 +28,8 @@ from app import bot
 
 logger = logging.getLogger(__name__)
 
+broadcasting = False
+
 @bot.on_message(filters.private & (filters.document | filters.video))
 async def del_file_handler(client, message):
     try:
@@ -339,30 +341,81 @@ async def remove_channel_handler(client, message: Message):
 
 @bot.on_message(filters.command("broadcast") & filters.chat(LOG_CHANNEL_ID))
 async def broadcast_handler(client, message: Message):
+    global broadcasting
     if message.reply_to_message:
-        users = users_col.find({}, {"_id": 0, "user_id": 1})
-        total = 0
-        failed = 0
-        removed = 0
+        if broadcasting:
+            await message.reply_text("already broadcasting")
+            return
+        users = list(users_col.find({}, {"_id": 0, "user_id": 1}))
+        total_users = len(users)
+        sent_count = 0
+        failed_count = 0
+        removed_count = 0
+        broadcasting = True
 
-        for user in users:
-             try:
+        status_message = await message.reply_text(
+            f"📢 **Broadcast in progress...**\n\n"
+            f"👥 **Total Users:** {total_users}\n"
+            f"✅ **Sent:** {sent_count}\n"
+            f"❌ **Failed:** {failed_count}\n"
+            f"🗑️ **Removed:** {removed_count}",
+            reply_markup=InlineKeyboardMarkup(
+                [[InlineKeyboardButton("Cancel", callback_data="cancel_broadcast")]]
+            )
+        )
+
+        for i, user in enumerate(users):
+            if not broadcasting:
+                await status_message.edit_text("📢 **Broadcast cancelled.**")
+                break
+            try:
                 msg = message.reply_to_message
                 if msg.forward_from_chat:
-                     await safe_api_call(msg.copy(chat_id=user["user_id"],
-                                                  caption=f"{msg.caption.html}\n\n✅ <b>Now Available!</b>",
-                                                  reply_markup=msg.reply_markup
-                                        ))
+                    await safe_api_call(msg.copy(chat_id=user["user_id"],
+                                                 caption=f"{msg.caption.html}\n\n✅ <b>Now Available!</b>",
+                                                 reply_markup=msg.reply_markup
+                                                 ))
                 else:
                     await safe_api_call(msg.copy(user["user_id"]))
-                total += 1
-             except (UserIsBlocked, InputUserDeactivated, PeerIdInvalid, UserIsBot):
+                sent_count += 1
+            except (UserIsBlocked, InputUserDeactivated, PeerIdInvalid, UserIsBot):
                 users_col.delete_one({"user_id": user["user_id"]})
-                removed += 1
-             except Exception as e:
-                failed += 1
+                removed_count += 1
+            except Exception as e:
+                failed_count += 1
                 logger.error(f"Error broadcasting to {user['user_id']}: {e}")
-        await message.reply_text(f"✅ Broadcasted to {total} users.\n❌ Failed: {failed}\n🗑️ Removed: {removed}")
+
+            if i % 10 == 0:
+                await status_message.edit_text(
+                    f"📢 **Broadcast in progress...**\n\n"
+                    f"👥 **Total Users:** {total_users}\n"
+                    f"✅ **Sent:** {sent_count}\n"
+                    f"❌ **Failed:** {failed_count}\n"
+                    f"🗑️ **Removed:** {removed_count}",
+                    reply_markup=InlineKeyboardMarkup(
+                        [[InlineKeyboardButton("Cancel", callback_data="cancel_broadcast")]]
+                    )
+                )
+        else:
+            await status_message.edit_text(
+                f"✅ **Broadcast finished!**\n\n"
+                f"👥 **Total Users:** {total_users}\n"
+                f"✅ **Sent:** {sent_count}\n"
+                f"❌ **Failed:** {failed_count}\n"
+                f"🗑️ **Removed:** {removed_count}"
+            )
+
+        broadcasting = False
+
+
+@bot.on_callback_query(filters.regex("cancel_broadcast"))
+async def cancel_broadcast_handler(client, query):
+    global broadcasting
+    if broadcasting:
+        broadcasting = False
+        await query.answer("Cancelling broadcast...", show_alert=True)
+    else:
+        await query.answer("No broadcast in progress.", show_alert=True)
 
 @bot.on_message(filters.command("log") & filters.private & filters.user(OWNER_ID))
 async def send_log_file(client, message: Message):
@@ -484,7 +537,7 @@ async def tmdb_command(client, message):
         upsert_tmdb_info(tmdb_id, tmdb_type, poster_path, name, year, rating, plot, trailer_url, imdb_id)
         
         keyboard = InlineKeyboardMarkup(
-            [[InlineKeyboardButton("🎥 Trailer", url=trailer_url)]]) if trailer else None
+            [[InlineKeyboardButton("🎥 Trailer", url=trailer)]]) if trailer else None
         if poster_url and SEND_UPDATES:
             await safe_api_call(
                 client.send_photo(
