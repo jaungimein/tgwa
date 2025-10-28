@@ -42,7 +42,9 @@ async def get_current_user(authorization: str = Header(None)):
     except (ValueError, TypeError):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token format")
 
-
+@api.get("/")
+async def root():
+    return JSONResponse({"message": "👋 Hola Amigo!"})
 
 @api.post("/api/authorize")
 async def api_authorize(request: Request):
