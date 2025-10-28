@@ -20,7 +20,7 @@ templates = Jinja2Templates(directory="web/templates")
 
 api.add_middleware(
     CORSMiddleware,
-    allow_origins=[f"http://{MY_DOMAIN}"],
+    allow_origins=[f"{MY_DOMAIN}"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -96,11 +96,11 @@ async def get_movies(request: Request, page: int = 1, search: str = None, catego
 
     sort_order = []
     if sort == "rating":
-        sort_order.append(("vote_average", -1))
+        sort_order.append(("rating", -1))
     elif sort == "recent":
         sort_order.append(("_id", -1))
     else:  # Default to year
-        sort_order.append(("release_date", -1))
+        sort_order.append(("year", -1))
 
     movies = list(tmdb_col.find(query).sort(sort_order).skip(skip).limit(page_size))
     total_movies = tmdb_col.count_documents(query)
