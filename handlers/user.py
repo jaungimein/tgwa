@@ -80,7 +80,7 @@ async def start_handler(client, message):
                 token_doc = tokens_col.find_one({"user_id": user_id, "expiry": {"$gt": now}})
                 token_id = token_doc["token_id"] if token_doc else generate_token(user_id)
                 short_link = await shorten_url(get_token_link(token_id, BOT_USERNAME))
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔓 Activate", url=short_link)]])
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🗝️ Verify", url=short_link)]])
 
             joined_date = user_doc.get("joined", "Unknown")
             joined_str = joined_date.strftime("%Y-%m-%d %H:%M") if isinstance(joined_date, datetime) else str(joined_date)
