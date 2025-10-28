@@ -65,36 +65,31 @@ async def del_file_handler(client, message):
 @bot.on_message(filters.command("copy") & filters.private & filters.user(OWNER_ID))
 async def copy_file_handler(client, message):
     try:
-        status_msg = None
+        if len(message.command) != 4:
+            await message.reply_text("<b>Usage:</b> /copy <start_link> <end_link> <dest_link>")
+            return
 
-        reply = await message.reply_text("📥 <b>Please forward the <u>start</u> message to copy.</b>")
-        start_msg = await client.listen(OWNER_ID, timeout=120)
+        start_link, end_link, dest_link = message.command[1], message.command[2], message.command[3]
 
-        await reply.edit_text("📤 <b>Now forward the <u>end</u> message to copy.</b>")
-        end_msg = await client.listen(OWNER_ID, timeout=120)
+        try:
+            source_channel_id, start_msg_id = extract_channel_and_msg_id(start_link)
+            end_source_channel_id, end_msg_id = extract_channel_and_msg_id(end_link)
+            dest_channel_id, _ = extract_channel_and_msg_id(dest_link)
+        except ValueError as e:
+            await message.reply_text(f"⚠️ <b>Invalid Link:</b> {e}")
+            return
 
-        if not start_msg.forward_from_chat or not end_msg.forward_from_chat:
-            return await reply.edit_text("⚠️ <b>Both messages must be forwarded from a channel.</b>")
+        if source_channel_id != end_source_channel_id:
+            return await message.reply_text("⚠️ <b>Start and end links must be from the same channel.</b>")
 
-        source_channel_id = start_msg.forward_from_chat.id
-        if source_channel_id != end_msg.forward_from_chat.id:
-            return await reply.edit_text("⚠️ <b>Start and end messages must be from the same channel.</b>")
-
-        await reply.edit_text("📍 <b>Now forward <u>any message</u> from the destination channel.</b>")
-        dest_msg = await client.listen(OWNER_ID, timeout=120)
-
-        if not dest_msg.forward_from_chat:
-            return await reply.edit_text("⚠️ <b>Destination message must be forwarded from a channel.</b>")
-
-        dest_channel_id = dest_msg.forward_from_chat.id
         if source_channel_id == dest_channel_id:
-            return await reply.edit_text("⚠️ <b>Source and destination channels must be different.</b>")
+            return await message.reply_text("⚠️ <b>Source and destination channels must be different.</b>")
 
-        start_id = min(start_msg.forward_from_message_id, end_msg.forward_from_message_id)
-        end_id = max(start_msg.forward_from_message_id, end_msg.forward_from_message_id)
+        start_id = min(start_msg_id, end_msg_id)
+        end_id = max(start_msg_id, end_msg_id)
         total = end_id - start_id + 1
 
-        status_msg= await message.reply_text(
+        status_msg = await message.reply_text(
             f"🔁 <b>Copying messages from ID <code>{start_id}</code> to <code>{end_id}</code>...</b>\n"
             f"📦 <i>Total messages to check: {total}</i>"
         )
@@ -111,7 +106,7 @@ async def copy_file_handler(client, message):
 
                     media = msg.document or msg.video or msg.audio
                     if not media:
-                        continue  # Skip non-media messages
+                        continue
 
                     caption = msg.caption or getattr(media, "file_name", "No Caption")
                     caption = remove_unwanted(caption)
@@ -151,85 +146,74 @@ async def copy_file_handler(client, message):
             f"❌ <b>Failed to copy:</b> {failed}\n"
             f"📂 <i>Total messages checked:</i> {total}"
         ))
-
-        await safe_api_call(bot.delete_messages(OWNER_ID, [start_msg.id, end_msg.id, dest_msg.id, reply.id, message.id]))
-
         invalidate_search_cache()
-    except ListenerTimeout:
-        await reply.edit_text("⏰ Timeout! You took too long to reply. Please try again.")
     except Exception as e:
         logger.error(f"[copy_file_handler] Error: {e}")
-        if status_msg:
-            await status_msg.edit_text("❌ <b>An error occurred during the copy process.</b>")
+        await message.reply_text("❌ <b>An error occurred during the copy process.</b>")
 
 @bot.on_message(filters.command("index") & filters.private & filters.user(OWNER_ID))
 async def index_channel_files(client, message):
-    dup = False
-    if len(message.command) > 1 and message.command[1].lower() == "dup":
-        dup = True
-
     try:
-        prompt = await safe_api_call(message.reply_text("Please send the **start file link** (Telegram message link, only /c/ links supported):"))
-        start_msg = await client.listen(OWNER_ID, timeout=120)
-        start_link = start_msg.text.strip()
-
-        prompt2 = await safe_api_call(message.reply_text("Now send the **end file link** (Telegram message link, only /c/ links supported):"))
-        end_msg = await client.listen(OWNER_ID, timeout=120)
-        end_link = end_msg.text.strip()
-
-        start_id, start_msg_id = extract_channel_and_msg_id(start_link)
-        end_id, end_msg_id = extract_channel_and_msg_id(end_link)
-
-        if start_id != end_id:
-            await message.reply_text("Start and end links must be from the same channel.")
+        args = message.command
+        if not (3 <= len(args) <= 4):
+            await message.reply_text("<b>Usage:</b> /index <start_link> <end_link> [dup]")
             return
 
-        channel_id = start_id
+        start_link, end_link = args[1], args[2]
+        dup = len(args) == 4 and args[3].lower() == "dup"
+
+        try:
+            start_channel_id, start_msg_id = extract_channel_and_msg_id(start_link)
+            end_channel_id, end_msg_id = extract_channel_and_msg_id(end_link)
+        except ValueError as e:
+            await message.reply_text(f"⚠️ <b>Invalid Link:</b> {e}")
+            return
+
+        if start_channel_id != end_channel_id:
+            await message.reply_text("⚠️ <b>Start and end links must be from the same channel.</b>")
+            return
+
+        channel_id = start_channel_id
         allowed_channels = await get_allowed_channels()
         if channel_id not in allowed_channels:
-            await message.reply_text("❌ This channel is not allowed for indexing.")
+            await message.reply_text("❌ <b>This channel is not allowed for indexing.</b>")
             return
 
-        if start_msg_id > end_msg_id:
-            start_msg_id, end_msg_id = end_msg_id, start_msg_id
+        start_id = min(start_msg_id, end_msg_id)
+        end_id = max(start_msg_id, end_msg_id)
 
-    except ListenerTimeout:
-        await safe_api_call(prompt.edit_text("⏰ Timeout! You took too long to reply. Please try again."))
-        return
-    except ValueError as e:
-        await message.reply_text(f"Invalid link: {e}")
-        return
+        reply = await message.reply_text(f"🔁 <b>Indexing files from <code>{start_id}</code> to <code>{end_id}</code>...</b>\n"
+                                       f"Duplicates allowed: {dup}")
 
-    reply = await message.reply_text(f"Indexing files from {start_msg_id} to {end_msg_id} in channel {channel_id}... Duplicates allowed: {dup}")
-
-    batch_size = 50
-    count = 0
-    for batch_start in range(start_msg_id, end_msg_id + 1, batch_size):
-        batch_end = min(batch_start + batch_size - 1, end_msg_id)
-        ids = list(range(batch_start, batch_end + 1))
-        messages = []
-        for msg_id in ids:
+        batch_size = 50
+        count = 0
+        for batch_start in range(start_id, end_id + 1, batch_size):
+            batch_end = min(batch_start + batch_size - 1, end_id)
+            ids = list(range(batch_start, batch_end + 1))
+            messages = []
             try:
-                msg = await client.get_messages(channel_id, msg_id)
-                messages.append(msg)
+                messages = await client.get_messages(channel_id, ids)
             except Exception as e:
-                logger.warning(f"Could not get message {msg_id}: {e}")
-                continue
-        for msg in messages:
-            if not msg:
-                continue
-            if msg.document or msg.video or msg.audio or msg.photo:
-                await queue_file_for_processing(
-                    msg,
-                    channel_id=channel_id,
-                    reply_func=reply.edit_text,
-                    duplicate=dup
-                )
-                count += 1
-        await safe_api_call(reply.edit_text(f"🔁 Indexing in progress... {count} files queued so far."))
-    await safe_api_call(reply.edit_text(f"✅ Indexing completed! Total files queued: {count}"))
-    await bot.delete_messages(OWNER_ID, [start_msg.id, end_msg.id, prompt.id, prompt2.id, message.id])
-    invalidate_search_cache()
+                logger.warning(f"Could not get messages in batch {batch_start}-{batch_end}: {e}")
+
+            for msg in messages:
+                if not msg:
+                    continue
+                if msg.document or msg.video or msg.audio or msg.photo:
+                    await queue_file_for_processing(
+                        msg,
+                        channel_id=channel_id,
+                        reply_func=reply.edit_text,
+                        duplicate=dup
+                    )
+                    count += 1
+            await safe_api_call(reply.edit_text(f"🔁 <b>Indexing in progress...</b> {count} files queued so far."))
+
+        await safe_api_call(reply.edit_text(f"✅ <b>Indexing completed!</b> Total files queued: {count}"))
+        invalidate_search_cache()
+    except Exception as e:
+        logger.error(f"[index_channel_files] Error: {e}")
+        await message.reply_text("❌ <b>An error occurred during the indexing process.</b>")
 
 @bot.on_message(filters.private & filters.command("del") & filters.user(OWNER_ID))
 async def delete_command(client, message):
