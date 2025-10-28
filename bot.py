@@ -8,7 +8,7 @@ from db import files_col
 from utility import file_queue_worker, periodic_expiry_cleanup
 from fast_api import api
 from config import LOG_CHANNEL_ID
-from handlers import owner, user, callbacks
+from handlers import owner, user
 
 async def main():
     """
