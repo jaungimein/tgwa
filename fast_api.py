@@ -37,7 +37,7 @@ async def get_current_user(authorization: str = Header(None)):
     try:
         user_id = int(token)
         if not is_user_authorized(user_id):
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not authorized")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authorization required — please verify through the bot first.")
         return user_id
     except (ValueError, TypeError):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token format")
