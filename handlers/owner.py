@@ -471,12 +471,12 @@ async def stats_command(client, message: Message):
     except Exception as e:
         logger.error(f"Error in stats_command: {e}")
 
-@bot.on_message(filters.private & filters.command("up") & filters.user(OWNER_ID))
-async def update_tmdb_info(client, message):
+@bot.on_message(filters.private & filters.command("sd") & filters.user(OWNER_ID))
+async def sd_command(client, message):
     try:
         args = message.text.split(maxsplit=3)
         if len(args) < 3:
-            await message.reply_text("Usage: /update <tmdb_link> <start_link> [end_link]")
+            await message.reply_text("Usage: /sd <tmdb_link> <start_link> [end_link]")
             return
 
         tmdb_link = args[1]
@@ -488,6 +488,31 @@ async def update_tmdb_info(client, message):
         except ValueError as e:
             await message.reply_text(f"Invalid TMDB link: {e}")
             return
+
+        info = await get_info(tmdb_type, tmdb_id)
+        poster_url = info.get('poster_url')
+        poster_path = info.get('poster_path')
+        trailer_url = info.get('trailer_url')
+        message_caption = info.get('message')
+        name = info.get('title')
+        year = info.get('year')
+        rating = info.get('rating')
+        plot = info.get("plot")
+        imdb_id = info.get("imdb_id")
+        upsert_tmdb_info(tmdb_id, tmdb_type, poster_path, name, year, rating, plot, trailer_url, imdb_id)
+
+        keyboard = InlineKeyboardMarkup(
+            [[InlineKeyboardButton("🎥 Trailer", url=trailer_url)]]) if trailer_url else None
+        if poster_url and SEND_UPDATES:
+            await safe_api_call(
+                client.send_photo(
+                    UPDATE_CHANNEL_ID,
+                    photo=poster_url,
+                    caption=message_caption,
+                    parse_mode=enums.ParseMode.HTML,
+                    reply_markup=keyboard
+                )
+            )
 
         if end_link:
             # Batch update
@@ -512,7 +537,7 @@ async def update_tmdb_info(client, message):
                 },
                 {"$set": {"tmdb_id": tmdb_id, "tmdb_type": tmdb_type}}
             )
-            await message.reply_text(f"✅ Successfully updated {result.modified_count} files with TMDB ID {tmdb_id} ({tmdb_type}).")
+            await message.reply_text(f"✅ Successfully added {result.modified_count} files with TMDB ID {tmdb_id} ({tmdb_type}).")
         else:
             # Single file update
             try:
@@ -526,52 +551,14 @@ async def update_tmdb_info(client, message):
                 {"$set": {"tmdb_id": tmdb_id, "tmdb_type": tmdb_type}}
             )
             if result.modified_count > 0:
-                await message.reply_text(f"✅ Successfully updated 1 file with TMDB ID {tmdb_id} ({tmdb_type}).")
+                await message.reply_text(f"✅ Successfully added 1 file with TMDB ID {tmdb_id} ({tmdb_type}).")
             else:
                 await message.reply_text("No file found to update.")
 
     except Exception as e:
-        logger.error(f"Error in update_tmdb_info: {e}")
+        logger.error(f"Error in sd_command: {e}")
         await message.reply_text(f"An error occurred: {e}")
 
-@bot.on_message(filters.private & filters.command("tmdb") & filters.user(OWNER_ID))
-async def tmdb_command(client, message):
-    try:
-        if len(message.command) < 2:
-            await message.reply_text("Usage: /tmdb tmdb_link")
-            return
-
-        tmdb_link = message.command[1]
-        tmdb_type, tmdb_id = await extract_tmdb_link(tmdb_link)
-        info = await get_info(tmdb_type, tmdb_id)
-        poster_url = info.get('poster_url')
-        poster_path = info.get('poster_path')
-        trailer_url = info.get('trailer_url')
-        message = info.get('message')
-        name = info.get('title')
-        year = info.get('year')
-        rating = info.get('rating')
-        plot = info.get("plot")
-        imdb_id = info.get("imdb_id")
-        upsert_tmdb_info(tmdb_id, tmdb_type, poster_path, name, year, rating, plot, trailer_url, imdb_id)
-        
-        keyboard = InlineKeyboardMarkup(
-            [[InlineKeyboardButton("🎥 Trailer", url=trailer_url)]]) if trailer_url else None
-        if poster_url and SEND_UPDATES:
-            await safe_api_call(
-                client.send_photo(
-                    UPDATE_CHANNEL_ID,
-                    photo=poster_url,
-                    caption=message,
-                    parse_mode=enums.ParseMode.HTML,
-                    reply_markup=keyboard
-                )
-            )
-            await message.delete()
-    except ValueError as e:
-        await message.reply_text(f"Error: {e}")
-    except Exception as e:
-        logging.error(f"Error in tmdb_command: {e}")
         
 @bot.on_message(filters.command("op") & filters.chat(LOG_CHANNEL_ID))
 async def chatop_handler(client, message: Message):
