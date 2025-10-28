@@ -221,52 +221,55 @@ async def index_channel_files(client, message):
 @bot.on_message(filters.private & filters.command("del") & filters.user(OWNER_ID))
 async def delete_command(client, message):
     try:
-        args = message.text.split(maxsplit=3)
-        if len(args) < 3:
-            await message.reply_text("Usage: /del <file|tmdb <link> [end_link]")
+        args = message.command
+        if not (2 <= len(args) <= 3):
+            await message.reply_text("<b>Usage:</b> /del <link> [end_link]")
             return
-        delete_type = args[1].strip().lower()
-        user_input = args[2].strip()
-        end_input = args[3].strip() if len(args) > 3 else None
 
-        if delete_type == "file":
+        if len(args) == 2:
+            # Single link deletion (TMDB or Telegram)
+            user_input = args[1].strip()
             try:
-                channel_id, msg_id = extract_channel_and_msg_id(user_input)
-                if end_input:
-                    end_channel_id, end_msg_id = extract_channel_and_msg_id(end_input)
-                    if channel_id != end_channel_id:
-                        await message.reply_text("Start and end links must be from the same channel.")
-                        return
-                    if msg_id > end_msg_id:
-                        msg_id, end_msg_id = end_msg_id, msg_id
-                    result = files_col.delete_many({
-                        "channel_id": channel_id,
-                        "message_id": {"$gte": msg_id, "$lte": end_msg_id}
-                    })
-                    await message.reply_text(f"Deleted {result.deleted_count} files from {msg_id} to {end_msg_id} in channel {channel_id}.")
-                else:
-                    result = files_col.delete_one({"channel_id": channel_id, "message_id": msg_id})
-                    await message.reply_text(f"Deleted file with message ID {msg_id} in channel {channel_id}.")
-            except ValueError as e:
-                await message.reply_text(f"Error: {e}")
-        elif delete_type == "tmdb":
-            try:
-                if end_input:
-                    tmdb_type = user_input.lower()
-                    tmdb_id = int(end_input.strip())
-                else:
-                    tmdb_type, tmdb_id = await extract_tmdb_link(user_input)
-
+                # Try TMDB first
+                tmdb_type, tmdb_id = await extract_tmdb_link(user_input)
                 result = tmdb_col.delete_one({"tmdb_type": tmdb_type, "tmdb_id": tmdb_id})
-
                 if result.deleted_count > 0:
                     await message.reply_text(f"Database record deleted: {tmdb_type}/{tmdb_id}.")
                 else:
                     await message.reply_text(f"No TMDB record found with ID {tmdb_type}/{tmdb_id} in the database.")
+            except ValueError:
+                # Not a TMDB link, try Telegram
+                try:
+                    channel_id, msg_id = extract_channel_and_msg_id(user_input)
+                    result = files_col.delete_one({"channel_id": channel_id, "message_id": msg_id})
+                    if result.deleted_count > 0:
+                        await message.reply_text(f"Deleted file with message ID {msg_id} in channel {channel_id}.")
+                    else:
+                        await message.reply_text(f"No file record found for message ID {msg_id} in channel {channel_id}.")
+                except ValueError:
+                    # Not a Telegram link either
+                    await message.reply_text("Invalid link provided. Please provide a valid TMDB or Telegram message link.")
+        
+        elif len(args) == 3:
+            # Range deletion for Telegram links
+            start_link = args[1].strip()
+            end_link = args[2].strip()
+            try:
+                channel_id, start_msg_id = extract_channel_and_msg_id(start_link)
+                end_channel_id, end_msg_id = extract_channel_and_msg_id(end_link)
+                if channel_id != end_channel_id:
+                    await message.reply_text("Start and end links must be from the same channel.")
+                    return
+                if start_msg_id > end_msg_id:
+                    start_msg_id, end_msg_id = end_msg_id, start_msg_id
+                result = files_col.delete_many({
+                    "channel_id": channel_id,
+                    "message_id": {"$gte": start_msg_id, "$lte": end_msg_id}
+                })
+                await message.reply_text(f"Deleted {result.deleted_count} files from {start_msg_id} to {end_msg_id} in channel {channel_id}.")
             except ValueError as e:
-                await message.reply_text(f"Error: {e}")
-        else:
-            await message.reply_text("Invalid delete type. Use 'file' or 'tmdb'.")
+                await message.reply_text(f"Error: Invalid Telegram link provided for range deletion. {e}")
+
     except Exception as e:
         logger.error(f"Error in delete_command: {e}")
         await message.reply_text(f"An error occurred: {e}")
