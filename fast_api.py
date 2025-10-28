@@ -130,7 +130,7 @@ async def get_movie_details(tmdb_id: str, tmdb_type: str, page: int = 1, user_id
     # Convert ObjectId to string and add stream URL
     for file in files:
         file["_id"] = str(file["_id"])
-        file["stream_url"] = f"https://{MY_DOMAIN}/player/{bot.encode_file_link(file['channel_id'], file['message_id'])}"
+        file["stream_url"] = f"{MY_DOMAIN}/player/{bot.encode_file_link(file['channel_id'], file['message_id'])}"
 
     return {
         "files": files,
@@ -159,7 +159,7 @@ async def get_others(page: int = 1, search: str = None, sort: str = "recent", us
 
     for file in files:
         file["_id"] = str(file["_id"])
-        file["stream_url"] = f"https://{MY_DOMAIN}/player/{bot.encode_file_link(file['channel_id'], file['message_id'])}"
+        file["stream_url"] = f"{MY_DOMAIN}/player/{bot.encode_file_link(file['channel_id'], file['message_id'])}"
 
     return {
         "files": files,
