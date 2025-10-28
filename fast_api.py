@@ -62,7 +62,7 @@ async def api_authorize(request: Request):
     if not is_user_authorized(user_id):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not authorized.",
+            detail="Authorization required — please verify through the bot first.",
         )
 
     # Instead of setting a cookie, return the user_id as a token
