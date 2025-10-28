@@ -55,6 +55,7 @@ BACKUP_CHANNEL = os.getenv('BACKUP_CHANNEL', '')
 SEND_UPDATES = os.getenv('SEND_UPDATES', 'True').lower() in ('true', '1', 't')
 
 MY_DOMAIN = os.getenv('MY_DOMAIN')
+CF_DOMAIN = os.getenv('CF_DOMAIN')
 
 TOKEN_VALIDITY_SECONDS = 24 * 60 * 60  # 24 hours
 
