@@ -74,10 +74,15 @@ async def get_files(admin_id: int = Depends(get_current_admin), page: int = 1, s
         sanitized_search = bot.sanitize_query(search)
         pipeline = build_search_pipeline(sanitized_search, {}, skip, page_size)
         result = list(files_col.aggregate(pipeline))
-        files = result[0]['results'] if result and 'results' in result[0] else []
-        for file in files:
-            file['id'] = str(file['_id'])
-            del file['_id']
+        files_data = result[0]['results'] if result and 'results' in result[0] else []
+        files = []
+        for file in files_data:
+            files.append({
+                "id": str(file.get("_id")),
+                "file_name": file.get("file_name"),
+                "tmdb_id": file.get("tmdb_id"),
+                "poster_url": file.get("poster_url")
+            })
         total_files = result[0]['totalCount'][0]['total'] if result and 'totalCount' in result[0] and result[0]['totalCount'] else 0
     else:
         files = []
@@ -135,4 +140,10 @@ async def update_tmdb_entry(tmdb_id: int, data: dict, admin_id: int = Depends(ge
         "year": data.get("year")
     }
     tmdb_col.update_one({"tmdb_id": tmdb_id}, {"$set": update_data})
+    return {"status": "success"}
+
+@router.put("/files/{file_id}")
+async def update_file_poster(file_id: str, data: dict, admin_id: int = Depends(get_current_admin)):
+    poster_url = data.get("poster_url")
+    files_col.update_one({"_id": ObjectId(file_id)}, {"$set": {"poster_url": poster_url}})
     return {"status": "success"}
