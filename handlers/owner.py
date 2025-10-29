@@ -10,10 +10,12 @@ from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 
 from config import OWNER_ID, LOG_CHANNEL_ID, UPDATE_CHANNEL_ID, MY_DOMAIN, SEND_UPDATES
 from db import files_col, allowed_channels_col, auth_users_col, users_col, tmdb_col, db
+import asyncio
 from utility import (
     extract_channel_and_msg_id,
     get_allowed_channels,
     queue_file_for_processing,
+    get_queue_size,
     invalidate_search_cache,
     auto_delete_message,
     safe_api_call,
@@ -155,6 +157,13 @@ async def copy_file_handler(client, message):
         await message.reply_text("❌ <b>An error occurred during the copy process.</b>")
 
 @bot.on_message(filters.command("index") & filters.private & filters.user(OWNER_ID))
+async def watch_queue(reply, total_files):
+    while get_queue_size() > 0:
+        processed_files = total_files - get_queue_size()
+        await safe_api_call(reply.edit_text(f"🔁 <b>Processing files...</b> {processed_files}/{total_files} processed."))
+        await asyncio.sleep(2)
+    await safe_api_call(reply.edit_text(f"✅ <b>Indexing completed!</b> {total_files} files processed."))
+    invalidate_search_cache()
 async def index_channel_files(client, message):
     try:
         args = message.command
@@ -212,8 +221,7 @@ async def index_channel_files(client, message):
                     count += 1
             await safe_api_call(reply.edit_text(f"🔁 <b>Indexing in progress...</b> {count} files queued so far."))
 
-        await safe_api_call(reply.edit_text(f"✅ <b>Indexing completed!</b> Total files queued: {count}"))
-        invalidate_search_cache()
+        asyncio.create_task(watch_queue(reply, count))
     except Exception as e:
         logger.error(f"[index_channel_files] Error: {e}")
         await message.reply_text("❌ <b>An error occurred during the indexing process.</b>")
