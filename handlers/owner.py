@@ -160,7 +160,7 @@ async def watch_queue(reply, total_files):
     while get_queue_size() > 0:
         processed_files = total_files - get_queue_size()
         await safe_api_call(reply.edit_text(f"🔁 <b>Processing files...</b> {processed_files}/{total_files} processed."))
-        await asyncio.sleep(2)
+        await asyncio.sleep(3)
     await safe_api_call(reply.edit_text(f"✅ <b>Indexing completed!</b> {total_files} files processed."))
     invalidate_search_cache()
 
