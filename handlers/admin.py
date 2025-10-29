@@ -26,7 +26,7 @@ async def get_current_user(authorization: str = Header(None)):
 
     try:
         user_id = int(token)
-        if not is_user_authorized(user_id):
+        if not await is_user_authorized(user_id):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authorization required — please verify through the bot first.")
         return user_id
     except (ValueError, TypeError):
@@ -46,7 +46,7 @@ async def get_tmdb_entries(admin_id: int = Depends(get_current_admin), page: int
         query["title"] = {"$regex": search, "$options": "i"}
     
     entries = []
-    for entry in tmdb_col.find(query).skip(skip).limit(page_size):
+    async for entry in tmdb_col.find(query).skip(skip).limit(page_size):
         entries.append({
             "tmdb_id": entry.get("tmdb_id"),
             "title": entry.get("title"),
@@ -56,7 +56,7 @@ async def get_tmdb_entries(admin_id: int = Depends(get_current_admin), page: int
             "year": entry.get("year")
         })
     
-    total_entries = tmdb_col.count_documents(query)
+    total_entries = await tmdb_col.count_documents(query)
     total_pages = (total_entries + page_size - 1) // page_size
     
     return {
@@ -73,7 +73,7 @@ async def get_files(admin_id: int = Depends(get_current_admin), page: int = 1, s
     if search:
         sanitized_search = bot.sanitize_query(search)
         pipeline = build_search_pipeline(sanitized_search, {}, skip, page_size)
-        result = list(files_col.aggregate(pipeline))
+        result = await files_col.aggregate(pipeline).to_list(length=None)
         files_data = result[0]['results'] if result and 'results' in result[0] else []
         files = []
         for file in files_data:
@@ -86,13 +86,13 @@ async def get_files(admin_id: int = Depends(get_current_admin), page: int = 1, s
         total_files = result[0]['totalCount'][0]['total'] if result and 'totalCount' in result[0] and result[0]['totalCount'] else 0
     else:
         files = []
-        for file in files_col.find().skip(skip).limit(page_size):
+        async for file in files_col.find().skip(skip).limit(page_size):
             files.append({
                 "id": str(file.get("_id")),
                 "file_name": file.get("file_name"),
                 "tmdb_id": file.get("tmdb_id")
             })
-        total_files = files_col.count_documents({})
+        total_files = await files_col.count_documents({})
         
     total_pages = (total_files + page_size - 1) // page_size
     
@@ -117,18 +117,18 @@ async def add_tmdb_entry(data: dict, admin_id: int = Depends(get_current_admin))
     if not tmdb_info or "message" in tmdb_info and tmdb_info["message"].startswith("Error"):
         raise HTTPException(status_code=404, detail="TMDB ID not found")
 
-    tmdb_col.update_one({"tmdb_id": tmdb_id, "tmdb_type": tmdb_type}, {"$set": tmdb_info}, upsert=True)
+    await tmdb_col.update_one({"tmdb_id": tmdb_id, "tmdb_type": tmdb_type}, {"$set": tmdb_info}, upsert=True)
 
     if file_ids:
         for file_id in file_ids:
-            files_col.update_one({"_id": ObjectId(file_id)}, {"$set": {"tmdb_id": tmdb_id, "tmdb_type": tmdb_type}})
+            await files_col.update_one({"_id": ObjectId(file_id)}, {"$set": {"tmdb_id": tmdb_id, "tmdb_type": tmdb_type}})
 
     return {"status": "success"}
 
 @router.delete("/tmdb/{tmdb_id}")
 async def delete_tmdb_entry(tmdb_id: int, admin_id: int = Depends(get_current_admin)):
-    tmdb_col.delete_one({"tmdb_id": tmdb_id})
-    files_col.update_many({"tmdb_id": tmdb_id}, {"$unset": {"tmdb_id": "", "tmdb_type": ""}})
+    await tmdb_col.delete_one({"tmdb_id": tmdb_id})
+    await files_col.update_many({"tmdb_id": tmdb_id}, {"$unset": {"tmdb_id": "", "tmdb_type": ""}})
     return {"status": "success"}
 
 @router.put("/tmdb/{tmdb_id}")
@@ -139,11 +139,11 @@ async def update_tmdb_entry(tmdb_id: int, data: dict, admin_id: int = Depends(ge
         "plot": data.get("plot"),
         "year": data.get("year")
     }
-    tmdb_col.update_one({"tmdb_id": tmdb_id}, {"$set": update_data})
+    await tmdb_col.update_one({"tmdb_id": tmdb_id}, {"$set": update_data})
     return {"status": "success"}
 
 @router.put("/files/{file_id}")
 async def update_file_poster(file_id: str, data: dict, admin_id: int = Depends(get_current_admin)):
     poster_url = data.get("poster_url")
-    files_col.update_one({"_id": ObjectId(file_id)}, {"$set": {"poster_url": poster_url}})
+    await files_col.update_one({"_id": ObjectId(file_id)}, {"$set": {"poster_url": poster_url}})
     return {"status": "success"}

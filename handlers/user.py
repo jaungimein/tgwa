@@ -36,7 +36,7 @@ async def start_handler(client, message):
         user_link = await get_user_link(message.from_user)
         first_name = message.from_user.first_name or "there"
         username = message.from_user.username or None
-        user_doc = add_user(user_id)
+        user_doc = await add_user(user_id)
 
         if user_doc["_new"]:
             log_msg = f"👤 New user added:\nID: <code>{user_id}</code>\n"
@@ -52,8 +52,8 @@ async def start_handler(client, message):
             return
 
         if len(message.command) == 2 and message.command[1].startswith("token_"):
-            if is_token_valid(message.command[1][6:], user_id):
-                authorize_user(user_id)
+            if await is_token_valid(message.command[1][6:], user_id):
+                await authorize_user(user_id)
                 reply_msg = await safe_api_call(message.reply_text("Great! You're all set to get files. ✅"))
                 await safe_api_call(bot.send_message(LOG_CHANNEL_ID, f"✅ User <b>{user_link} | <code>{user_id}</code></b> authorized via @{BOT_USERNAME}"))
             else:
@@ -75,10 +75,10 @@ async def start_handler(client, message):
                 return
 
             reply_markup = None
-            if not is_user_authorized(user_id):
+            if not await is_user_authorized(user_id):
                 now = datetime.now(timezone.utc)
-                token_doc = tokens_col.find_one({"user_id": user_id, "expiry": {"$gt": now}})
-                token_id = token_doc["token_id"] if token_doc else generate_token(user_id)
+                token_doc = await tokens_col.find_one({"user_id": user_id, "expiry": {"$gt": now}})
+                token_id = token_doc["token_id"] if token_doc else await generate_token(user_id)
                 short_link = await shorten_url(get_token_link(token_id, BOT_USERNAME))
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🗝️ Verify", url=short_link)]])
 

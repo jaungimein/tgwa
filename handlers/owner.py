@@ -41,11 +41,11 @@ async def del_file_handler(client, message):
             channel_id = message.forward_from_chat.id if message.forward_from_chat else None
             msg_id = message.forward_from_message_id if message.forward_from_message_id else None
             if channel_id and msg_id:
-                file_doc = files_col.find_one({"channel_id": channel_id, "message_id": msg_id})
+                file_doc = await files_col.find_one({"channel_id": channel_id, "message_id": msg_id})
                 if not file_doc:
                     reply = await message.reply_text("No file found with that name in the database.")
                     return
-                result = files_col.delete_one({"channel_id": channel_id, "message_id": msg_id})
+                result = await files_col.delete_one({"channel_id": channel_id, "message_id": msg_id})
                 if result.deleted_count > 0:
                     reply = await message.reply_text(f"Database record deleted. File name: {file_doc['file_name']}")
         else:
@@ -249,7 +249,7 @@ async def delete_command(client, message):
             try:
                 # Try TMDB first
                 tmdb_type, tmdb_id = await extract_tmdb_link(user_input)
-                result = tmdb_col.delete_one({"tmdb_type": tmdb_type, "tmdb_id": tmdb_id})
+                result = await tmdb_col.delete_one({"tmdb_type": tmdb_type, "tmdb_id": tmdb_id})
                 if result.deleted_count > 0:
                     await message.reply_text(f"Database record deleted: {tmdb_type}/{tmdb_id}.")
                 else:
@@ -258,7 +258,7 @@ async def delete_command(client, message):
                 # Not a TMDB link, try Telegram
                 try:
                     channel_id, msg_id = extract_channel_and_msg_id(user_input)
-                    result = files_col.delete_one({"channel_id": channel_id, "message_id": msg_id})
+                    result = await files_col.delete_one({"channel_id": channel_id, "message_id": msg_id})
                     if result.deleted_count > 0:
                         await message.reply_text(f"Deleted file with message ID {msg_id} in channel {channel_id}.")
                     else:
@@ -279,7 +279,7 @@ async def delete_command(client, message):
                     return
                 if start_msg_id > end_msg_id:
                     start_msg_id, end_msg_id = end_msg_id, start_msg_id
-                result = files_col.delete_many({
+                result = await files_col.delete_many({
                     "channel_id": channel_id,
                     "message_id": {"$gte": start_msg_id, "$lte": end_msg_id}
                 })
@@ -329,7 +329,7 @@ async def add_channel_handler(client, message: Message):
     try:
         channel_id = int(message.command[1])
         channel_name = " ".join(message.command[2:])
-        allowed_channels_col.update_one(
+        await allowed_channels_col.update_one(
             {"channel_id": channel_id},
             {"$set": {"channel_id": channel_id, "channel_name": channel_name}},
             upsert=True
@@ -348,7 +348,7 @@ async def remove_channel_handler(client, message: Message):
         return
     try:
         channel_id = int(message.command[1])
-        result = allowed_channels_col.delete_one({"channel_id": channel_id})
+        result = await allowed_channels_col.delete_one({"channel_id": channel_id})
         if result.deleted_count:
             await message.reply_text(f"✅ Channel {channel_id} removed from allowed channels.")
         else:
@@ -366,7 +366,7 @@ async def broadcast_handler(client, message: Message):
         if broadcasting:
             await message.reply_text("already broadcasting")
             return
-        users = list(users_col.find({}, {"_id": 0, "user_id": 1}))
+        users = await users_col.find({}, {"_id": 0, "user_id": 1}).to_list(length=None)
         total_users = len(users)
         sent_count = 0
         failed_count = 0
@@ -399,7 +399,7 @@ async def broadcast_handler(client, message: Message):
                     await safe_api_call(msg.copy(user["user_id"]))
                 sent_count += 1
             except (UserIsBlocked, InputUserDeactivated, PeerIdInvalid, UserIsBot):
-                users_col.delete_one({"user_id": user["user_id"]})
+                await users_col.delete_one({"user_id": user["user_id"]})
                 removed_count += 1
             except Exception as e:
                 failed_count += 1
@@ -452,24 +452,24 @@ async def send_log_file(client, message: Message):
 @bot.on_message(filters.command("stats") & filters.private & filters.user(OWNER_ID))
 async def stats_command(client, message: Message):
     try:
-        total_auth_users = auth_users_col.count_documents({})
-        total_users = users_col.count_documents({})
+        total_auth_users = await auth_users_col.count_documents({})
+        total_users = await users_col.count_documents({})
 
         pipeline = [
             {"$group": {"_id": None, "total": {"$sum": "$file_size"}}}
         ]
-        result = list(files_col.aggregate(pipeline))
+        result = await files_col.aggregate(pipeline).to_list(length=None)
         total_storage = result[0]["total"] if result else 0
 
-        stats = db.command("dbstats")
+        stats = await db.command("dbstats")
         db_storage = stats.get("storageSize", 0)
 
         channel_pipeline = [
             {"$group": {"_id": "$channel_id", "count": {"$sum": 1}}},
             {"$sort": {"count": -1}}
         ]
-        channel_counts = list(files_col.aggregate(channel_pipeline))
-        channel_docs = allowed_channels_col.find({}, {"_id": 0, "channel_id": 1, "channel_name": 1})
+        channel_counts = await files_col.aggregate(channel_pipeline).to_list(length=None)
+        channel_docs = await allowed_channels_col.find({}, {"_id": 0, "channel_id": 1, "channel_name": 1}).to_list(length=None)
         channel_names = {c["channel_id"]: c.get("channel_name", "") for c in channel_docs}
 
         text = (
@@ -519,7 +519,7 @@ async def sd_command(client, message):
         rating = info.get('rating')
         plot = info.get("plot")
         imdb_id = info.get("imdb_id")
-        upsert_tmdb_info(tmdb_id, tmdb_type, poster_path, name, year, rating, plot, trailer_url, imdb_id)
+        await upsert_tmdb_info(tmdb_id, tmdb_type, poster_path, name, year, rating, plot, trailer_url, imdb_id)
 
         keyboard = InlineKeyboardMarkup(
             [[InlineKeyboardButton("🎥 Trailer", url=trailer_url)]]) if trailer_url else None
@@ -550,7 +550,7 @@ async def sd_command(client, message):
             if start_msg_id > end_msg_id:
                 start_msg_id, end_msg_id = end_msg_id, start_msg_id
 
-            result = files_col.update_many(
+            result = await files_col.update_many(
                 {
                     "channel_id": start_channel_id,
                     "message_id": {"$gte": start_msg_id, "$lte": end_msg_id}
@@ -566,7 +566,7 @@ async def sd_command(client, message):
                 await message.reply_text(f"Invalid Telegram link: {e}")
                 return
 
-            result = files_col.update_one(
+            result = await files_col.update_one(
                 {"channel_id": channel_id, "message_id": msg_id},
                 {"$set": {"tmdb_id": tmdb_id, "tmdb_type": tmdb_type}}
             )
@@ -641,7 +641,7 @@ async def block_user_handler(client, message: Message):
         return
     try:
         user_id = int(args[1])
-        users_col.update_one(
+        await users_col.update_one(
             {"user_id": user_id},
             {"$set": {"blocked": True}},
             upsert=True
@@ -661,7 +661,7 @@ async def unblock_user_handler(client, message: Message):
         return
     try:
         user_id = int(args[1])
-        users_col.update_one(
+        await users_col.update_one(
             {"user_id": user_id},
             {"$set": {"blocked": False}},
             upsert=True
@@ -684,11 +684,11 @@ async def add_poster_handler(_, message: Message):
         channel_id, msg_id = extract_channel_and_msg_id(file_link)
         poster_url = args[2].strip()
 
-        file_record = files_col.find_one({"channel_id": channel_id, "message_id": msg_id})
+        file_record = await files_col.find_one({"channel_id": channel_id, "message_id": msg_id})
         if not file_record:
             await message.reply_text("❌ No file record found with the provided link.")
             return
-        files_col.update_one(
+        await files_col.update_one(
             {"channel_id": channel_id, "message_id": msg_id},
             {"$set": {"poster_url": poster_url}}
         )

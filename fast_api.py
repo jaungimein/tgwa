@@ -39,7 +39,7 @@ async def get_current_user(authorization: str = Header(None)):
 
     try:
         user_id = int(token)
-        if not is_user_authorized(user_id):
+        if not await is_user_authorized(user_id):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authorization required — please verify through the bot first.")
         return user_id
     except (ValueError, TypeError):
@@ -62,7 +62,7 @@ async def api_authorize(request: Request):
             detail="Invalid User ID format.",
         )
 
-    if not is_user_authorized(user_id):
+    if not await is_user_authorized(user_id):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authorization required — please verify through the bot first.",
@@ -104,8 +104,8 @@ async def get_movies(page: int = 1, search: str = None, category: str = None, so
     else:  # Default to recent
         sort_order.append(("_id", -1))
     
-    movies = list(tmdb_col.find(query).sort(sort_order).skip(skip).limit(page_size))
-    total_movies = tmdb_col.count_documents(query)
+    movies = await tmdb_col.find(query).sort(sort_order).skip(skip).limit(page_size).to_list(length=page_size)
+    total_movies = await tmdb_col.count_documents(query)
 
     # Convert ObjectId to string
     for movie in movies:
@@ -127,8 +127,8 @@ async def get_movie_details(tmdb_id: str, tmdb_type: str, page: int = 1, user_id
     page_size = 10
     skip = (page - 1) * page_size
 
-    files = list(files_col.find({"tmdb_id": tmdb_id, "tmdb_type": tmdb_type}).skip(skip).limit(page_size))
-    total_files = files_col.count_documents({"tmdb_id": tmdb_id, "tmdb_type": tmdb_type})
+    files = await files_col.find({"tmdb_id": tmdb_id, "tmdb_type": tmdb_type}).skip(skip).limit(page_size).to_list(length=page_size)
+    total_files = await files_col.count_documents({"tmdb_id": tmdb_id, "tmdb_type": tmdb_type})
 
     # Convert ObjectId to string and add stream URL
     for file in files:
@@ -144,7 +144,7 @@ async def get_movie_details(tmdb_id: str, tmdb_type: str, page: int = 1, user_id
 @api.get("/api/file/{file_id}")
 async def get_file_details(file_id: str, user_id: int = Depends(get_current_user)):
     try:
-        file = files_col.find_one({"_id": ObjectId(file_id)})
+        file = await files_col.find_one({"_id": ObjectId(file_id)})
         if not file:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
 
@@ -164,13 +164,13 @@ async def get_others(page: int = 1, search: str = None, sort: str = "recent", us
     if search:
         sanitized_search = bot.sanitize_query(search)
         pipeline = build_search_pipeline(sanitized_search, {"channel_id": {"$nin": TMDB_CHANNEL_ID}}, skip, page_size)
-        result = list(files_col.aggregate(pipeline))
+        result = await files_col.aggregate(pipeline).to_list(length=None)
         files = result[0]['results'] if result and 'results' in result[0] else []
         total_files = result[0]['totalCount'][0]['total'] if result and 'totalCount' in result[0] and result[0]['totalCount'] else 0
     else:
         query = {"channel_id": {"$nin": TMDB_CHANNEL_ID}}
-        files = list(files_col.find(query).sort(sort_order).skip(skip).limit(page_size))
-        total_files = files_col.count_documents(query)
+        files = await files_col.find(query).sort(sort_order).skip(skip).limit(page_size).to_list(length=page_size)
+        total_files = await files_col.count_documents(query)
 
     for file in files:
         file["_id"] = str(file["_id"])
@@ -195,7 +195,7 @@ async def create_comment(request: Request, user_id: int = Depends(get_current_us
         "comment": comment_text,
         "created_at": datetime.now(timezone.utc)
     }
-    comments_col.insert_one(comment)
+    await comments_col.insert_one(comment)
     return {"message": "Comment added successfully"}
 
 @api.get("/api/comments")
@@ -204,12 +204,12 @@ async def get_comments(page: int = 1, user_id: int = Depends(get_current_user)):
     skip = (page - 1) * page_size
 
     comments = []
-    for comment in comments_col.find().sort("_id", -1).skip(skip).limit(page_size):
+    async for comment in comments_col.find().sort("_id", -1).skip(skip).limit(page_size):
         comment["_id"] = str(comment["_id"])
         comment["first_name"] = comment["user_name"]
         comments.append(comment)
 
-    total_comments = comments_col.count_documents({})
+    total_comments = await comments_col.count_documents({})
 
     return {
         "comments": comments,
@@ -237,5 +237,3 @@ async def stream_player(file_link: str, request: Request):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 '''
-
-
