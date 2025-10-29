@@ -14,8 +14,9 @@ async def main():
     """
     Starts the bot and FastAPI server.
     """
-    if "file_name_text" not in [idx["name"] for idx in files_col.list_indexes()]:
-        files_col.create_index([("file_name", "text")])
+    index_names = [index['name'] async for index in files_col.list_indexes()]
+    if "file_name_text" not in index_names:
+        await files_col.create_index([("file_name", "text")])
 
     await bot.start()
 
