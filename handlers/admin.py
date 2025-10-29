@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Header, status
 from fastapi.responses import FileResponse
 from db import tmdb_col, files_col
-from utility import is_user_authorized
+from utility import is_user_authorized, build_search_pipeline
 from config import OWNER_ID
 from tmdb import get_info
 from bson.objectid import ObjectId
@@ -49,7 +49,10 @@ async def get_tmdb_entries(admin_id: int = Depends(get_current_admin), page: int
         entries.append({
             "tmdb_id": entry.get("tmdb_id"),
             "title": entry.get("title"),
-            "type": entry.get("tmdb_type")
+            "type": entry.get("tmdb_type"),
+            "rating": entry.get("rating"),
+            "plot": entry.get("plot"),
+            "year": entry.get("year")
         })
     
     total_entries = tmdb_col.count_documents(query)
@@ -62,19 +65,25 @@ async def get_tmdb_entries(admin_id: int = Depends(get_current_admin), page: int
     }
 
 @router.get("/files")
-async def get_files(admin_id: int = Depends(get_current_admin), page: int = 1):
+async def get_files(admin_id: int = Depends(get_current_admin), page: int = 1, search: str = None):
     page_size = 10
     skip = (page - 1) * page_size
     
-    files = []
-    for file in files_col.find().skip(skip).limit(page_size):
-        files.append({
-            "id": str(file.get("_id")),
-            "file_name": file.get("file_name"),
-            "tmdb_id": file.get("tmdb_id")
-        })
-    
-    total_files = files_col.count_documents({})
+    if search:
+        pipeline = build_search_pipeline(search, {}, skip, page_size)
+        result = list(files_col.aggregate(pipeline))
+        files = result[0]['results'] if result and 'results' in result[0] else []
+        total_files = result[0]['totalCount'][0]['total'] if result and 'totalCount' in result[0] and result[0]['totalCount'] else 0
+    else:
+        files = []
+        for file in files_col.find().skip(skip).limit(page_size):
+            files.append({
+                "id": str(file.get("_id")),
+                "file_name": file.get("file_name"),
+                "tmdb_id": file.get("tmdb_id")
+            })
+        total_files = files_col.count_documents({})
+        
     total_pages = (total_files + page_size - 1) // page_size
     
     return {
