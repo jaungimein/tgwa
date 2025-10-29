@@ -121,8 +121,8 @@ def build_search_pipeline(query, match_query, skip, limit):
     # Sort results by score and then file name
     sort_stage = {
         "$sort": {
-            "score": -1,
-            "_id": -1
+            "file_name": 1,
+            "score": -1
         }
     }
 
