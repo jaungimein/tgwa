@@ -3,7 +3,6 @@ import base64
 from fastapi import FastAPI, Request, Depends, HTTPException, status, Header
 from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from config import MY_DOMAIN, CF_DOMAIN
 from utility import is_user_authorized, get_user_firstname, build_search_pipeline
@@ -13,6 +12,7 @@ from app import bot
 from config import TMDB_CHANNEL_ID, OWNER_ID
 from datetime import datetime, timezone
 from handlers.admin import router as admin_router
+from bson.objectid import ObjectId
 
 api = FastAPI()
 
@@ -117,8 +117,6 @@ async def get_movies(page: int = 1, search: str = None, category: str = None, so
         "current_page": page
     }
 
-
-
 @api.get("/api/details/{tmdb_id}")
 async def get_movie_details(tmdb_id: str, tmdb_type: str, page: int = 1, user_id: int = Depends(get_current_user)):
     try:
@@ -143,6 +141,18 @@ async def get_movie_details(tmdb_id: str, tmdb_type: str, page: int = 1, user_id
         "current_page": page
     }
 
+@api.get("/api/file/{file_id}")
+async def get_file_details(file_id: str, user_id: int = Depends(get_current_user)):
+    try:
+        file = files_col.find_one({"_id": ObjectId(file_id)})
+        if not file:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
+
+        file["_id"] = str(file["_id"])
+        file["stream_url"] = f"{MY_DOMAIN}/player/{bot.encode_file_link(file['channel_id'], file['message_id'])}"
+        return file
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid file ID")
 
 @api.get("/api/others")
 async def get_others(page: int = 1, search: str = None, sort: str = "recent", user_id: int = Depends(get_current_user)):
