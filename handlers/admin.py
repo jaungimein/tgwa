@@ -37,26 +37,51 @@ async def get_current_admin(user_id: int = Depends(get_current_user)):
     return user_id
 
 @router.get("/tmdb")
-async def get_tmdb_entries(admin_id: int = Depends(get_current_admin)):
+async def get_tmdb_entries(admin_id: int = Depends(get_current_admin), page: int = 1, search: str = None):
+    page_size = 10
+    skip = (page - 1) * page_size
+    query = {}
+    if search:
+        query["title"] = {"$regex": search, "$options": "i"}
+    
     entries = []
-    for entry in tmdb_col.find():
+    for entry in tmdb_col.find(query).skip(skip).limit(page_size):
         entries.append({
             "tmdb_id": entry.get("tmdb_id"),
             "title": entry.get("title"),
             "type": entry.get("tmdb_type")
         })
-    return entries
+    
+    total_entries = tmdb_col.count_documents(query)
+    total_pages = (total_entries + page_size - 1) // page_size
+    
+    return {
+        "entries": entries,
+        "total_pages": total_pages,
+        "current_page": page
+    }
 
 @router.get("/files")
-async def get_files(admin_id: int = Depends(get_current_admin)):
+async def get_files(admin_id: int = Depends(get_current_admin), page: int = 1):
+    page_size = 10
+    skip = (page - 1) * page_size
+    
     files = []
-    for file in files_col.find():
+    for file in files_col.find().skip(skip).limit(page_size):
         files.append({
             "id": str(file.get("_id")),
             "file_name": file.get("file_name"),
             "tmdb_id": file.get("tmdb_id")
         })
-    return files
+    
+    total_files = files_col.count_documents({})
+    total_pages = (total_files + page_size - 1) // page_size
+    
+    return {
+        "files": files,
+        "total_pages": total_pages,
+        "current_page": page
+    }
 
 @router.post("/tmdb")
 async def add_tmdb_entry(data: dict, admin_id: int = Depends(get_current_admin)):
@@ -85,4 +110,15 @@ async def add_tmdb_entry(data: dict, admin_id: int = Depends(get_current_admin))
 async def delete_tmdb_entry(tmdb_id: int, admin_id: int = Depends(get_current_admin)):
     tmdb_col.delete_one({"tmdb_id": tmdb_id})
     files_col.update_many({"tmdb_id": tmdb_id}, {"$unset": {"tmdb_id": "", "tmdb_type": ""}})
+    return {"status": "success"}
+
+@router.put("/tmdb/{tmdb_id}")
+async def update_tmdb_entry(tmdb_id: int, data: dict, admin_id: int = Depends(get_current_admin)):
+    update_data = {
+        "title": data.get("title"),
+        "rating": data.get("rating"),
+        "plot": data.get("plot"),
+        "year": data.get("year")
+    }
+    tmdb_col.update_one({"tmdb_id": tmdb_id}, {"$set": update_data})
     return {"status": "success"}
