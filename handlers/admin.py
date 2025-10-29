@@ -1,3 +1,4 @@
+import re
 from fastapi import APIRouter, Depends, HTTPException, Header, status
 from fastapi.responses import FileResponse
 from db import tmdb_col, files_col
@@ -43,8 +44,9 @@ async def get_tmdb_entries(admin_id: int = Depends(get_current_admin), page: int
     skip = (page - 1) * page_size
     query = {}
     if search:
-        query["title"] = {"$regex": search, "$options": "i"}
-    
+        escaped_search = re.escape(search)
+        query["title"] = {"$regex": escaped_search, "$options": "i"}
+
     entries = []
     async for entry in tmdb_col.find(query).skip(skip).limit(page_size):
         entries.append({
@@ -55,7 +57,7 @@ async def get_tmdb_entries(admin_id: int = Depends(get_current_admin), page: int
             "plot": entry.get("plot"),
             "year": entry.get("year")
         })
-    
+
     total_entries = await tmdb_col.count_documents(query)
     total_pages = (total_entries + page_size - 1) // page_size
     
@@ -71,7 +73,7 @@ async def get_files(admin_id: int = Depends(get_current_admin), page: int = 1, s
     skip = (page - 1) * page_size
     
     if search:
-        sanitized_search = bot.sanitize_query(search)
+        sanitized_search = await bot.sanitize_query(search)
         pipeline = build_search_pipeline(sanitized_search, {}, skip, page_size)
         result = await files_col.aggregate(pipeline).to_list(length=None)
         files_data = result[0]['results'] if result and 'results' in result[0] else []
