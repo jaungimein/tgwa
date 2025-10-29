@@ -8,7 +8,11 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body {
+            background-image: url('https://image.tmdb.org/t/p/original/2746UvsbkZINd873Yd3o3TxOwCP.jpg');
             background-color: #141414;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
             color: #fff;
             display: flex;
             justify-content: center;
@@ -66,7 +70,7 @@
                     window.location.href = 'index.html';
                 } else {
                     const error = await response.json();
-                    errorMessage.textContent = error.detail || 'Login failed';
+                    errorMessage.textContent = error.detail || 'Authorization required — please verify through the bot first.';
                     errorMessage.style.display = 'block';
                 }
             } catch (error) {
