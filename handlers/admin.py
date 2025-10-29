@@ -4,6 +4,7 @@ from db import tmdb_col, files_col
 from utility import is_user_authorized, build_search_pipeline
 from config import OWNER_ID
 from tmdb import get_info
+from app import bot
 from bson.objectid import ObjectId
 import logging
 
@@ -70,9 +71,13 @@ async def get_files(admin_id: int = Depends(get_current_admin), page: int = 1, s
     skip = (page - 1) * page_size
     
     if search:
-        pipeline = build_search_pipeline(search, {}, skip, page_size)
+        sanitized_search = bot.sanitize_query(search)
+        pipeline = build_search_pipeline(sanitized_search, {}, skip, page_size)
         result = list(files_col.aggregate(pipeline))
         files = result[0]['results'] if result and 'results' in result[0] else []
+        for file in files:
+            file['id'] = str(file['_id'])
+            del file['_id']
         total_files = result[0]['totalCount'][0]['total'] if result and 'totalCount' in result[0] and result[0]['totalCount'] else 0
     else:
         files = []
