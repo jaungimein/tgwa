@@ -98,12 +98,12 @@ async def get_movies(page: int = 1, search: str = None, category: str = None, so
     if sort == "rating":
         sort_order.append(("rating", -1))
         sort_order.append(("_id", -1))
-    elif sort == "recent":
-        sort_order.append(("_id", -1))
-    else:  # Default to year
+    elif sort == "year":
         sort_order.append(("year", -1))
         sort_order.append(("_id", -1))
-
+    else:  # Default to recent
+        sort_order.append(("_id", -1))
+    
     movies = list(tmdb_col.find(query).sort(sort_order).skip(skip).limit(page_size))
     total_movies = tmdb_col.count_documents(query)
 
