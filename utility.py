@@ -497,6 +497,10 @@ async def extract_tmdb_link(tmdb_url):
 
 file_queue = asyncio.Queue()
 
+def get_queue_size():
+    """Returns the current size of the file processing queue."""
+    return file_queue.qsize()
+
 async def handle_duplicate_file(bot, file_info):
     """Checks for duplicate files and logs if found."""
     existing = files_col.find_one({
