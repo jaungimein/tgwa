@@ -157,11 +157,19 @@ async def copy_file_handler(client, message):
         await message.reply_text("❌ <b>An error occurred during the copy process.</b>")
 
 async def watch_queue(reply, total_files):
+    last_message = ""
     while get_queue_size() > 0:
         processed_files = total_files - get_queue_size()
-        await safe_api_call(reply.edit_text(f"🔁 <b>Processing files...</b> {processed_files}/{total_files} processed."))
-        await asyncio.sleep(3)
-    await safe_api_call(reply.edit_text(f"✅ <b>Indexing completed!</b> {total_files} files processed."))
+        current_message = f"🔁 <b>Processing files...</b> {processed_files}/{total_files} processed."
+        if last_message != current_message:
+            await safe_api_call(reply.edit_text(current_message))
+            last_message = current_message
+        await asyncio.sleep(10)
+
+    final_message = f"✅ <b>Indexing completed!</b> {total_files} files processed."
+    if last_message != final_message:
+        await safe_api_call(reply.edit_text(final_message))
+        
     invalidate_search_cache()
 
 @bot.on_message(filters.command("index") & filters.private & filters.user(OWNER_ID))
