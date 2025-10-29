@@ -27,6 +27,22 @@
             overflow: hidden;
             border-radius: 10px;
         }
+
+        .rating-badge {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: #ffcc00;
+            font-weight: bold;
+            padding: 4px 8px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            z-index: 2;
+        }
         .movie-tile img {
             width: 100%;
             height: auto;
@@ -163,6 +179,14 @@
                 const img = document.createElement('img');
                 img.src = movie.poster_path ? `${POSTER_BASE_URL}${movie.poster_path}` : 'https://via.placeholder.com/200x300';
                 tile.appendChild(img);
+
+                // ⭐ Rating badge using movie.rating
+                if (movie.rating !== undefined && movie.rating !== null) {
+                   const ratingBadge = document.createElement('div');
+                   ratingBadge.className = 'rating-badge';
+                   ratingBadge.innerHTML = `⭐ ${movie.rating ?? 'N/A'}`;
+                   tile.appendChild(ratingBadge);
+                }
 
                 const detailsBtn = document.createElement('a');
                 detailsBtn.href = `details.html?tmdb_id=${movie.tmdb_id}&tmdb_type=${movie.tmdb_type}`;
