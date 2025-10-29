@@ -1,4 +1,4 @@
-qimport re
+import re
 import base64
 from fastapi import FastAPI, Request, Depends, HTTPException, status, Header
 from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
@@ -13,7 +13,6 @@ from app import bot
 from config import TMDB_CHANNEL_ID, OWNER_ID
 from datetime import datetime, timezone
 from handlers.admin import router as admin_router
-from fastapi.responses import FileResponse
 
 api = FastAPI()
 
