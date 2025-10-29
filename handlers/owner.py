@@ -156,7 +156,6 @@ async def copy_file_handler(client, message):
         logger.error(f"[copy_file_handler] Error: {e}")
         await message.reply_text("❌ <b>An error occurred during the copy process.</b>")
 
-@bot.on_message(filters.command("index") & filters.private & filters.user(OWNER_ID))
 async def watch_queue(reply, total_files):
     while get_queue_size() > 0:
         processed_files = total_files - get_queue_size()
@@ -164,6 +163,8 @@ async def watch_queue(reply, total_files):
         await asyncio.sleep(2)
     await safe_api_call(reply.edit_text(f"✅ <b>Indexing completed!</b> {total_files} files processed."))
     invalidate_search_cache()
+
+@bot.on_message(filters.command("index") & filters.private & filters.user(OWNER_ID))
 async def index_channel_files(client, message):
     try:
         args = message.command
