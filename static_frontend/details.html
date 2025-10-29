@@ -170,7 +170,7 @@
                     <div class="col-md-8">
                         <h1>${details.title}</h1>
                         <p><b>Year:</b> ${details.year}</p>
-                        <p><b>Rating:</b> ${details.rating}</p>
+                        <p><b>Rating:</b> ⭐ ${details.rating ?? 'N/A'}${details.rating ? '/10' : ''}</p>
                         <p>${details.plot}</p>
                         ${details.trailer_url ? `
                             <a href="${details.trailer_url}" class="logo-btn" target="_blank">
@@ -210,7 +210,7 @@
                 item.className = 'file-item';
                 item.innerHTML = `
                     <span>${file.file_name}</span>
-                    <a href="${file.stream_url}" class="btn btn-success">Stream</a>
+                    <a href="${file.stream_url}" class="btn btn-success">Play</a>
                 `;
                 fileList.appendChild(item);
             });
