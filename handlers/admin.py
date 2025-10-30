@@ -4,10 +4,11 @@ from fastapi.responses import FileResponse
 from db import tmdb_col, files_col
 from utility import is_user_authorized, build_search_pipeline, safe_api_call
 from config import OWNER_ID, SEND_UPDATES, UPDATE_CHANNEL_ID
-from pyrogram import enums
 from tmdb import get_info
 from app import bot
 from bson.objectid import ObjectId
+from pyrogram import enums
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 import logging
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -116,23 +117,36 @@ async def add_tmdb_entry(data: dict, admin_id: int = Depends(get_current_admin))
     except (ValueError, TypeError):
         raise HTTPException(status_code=400, detail="Invalid TMDB ID")
 
-    tmdb_info = await get_info(tmdb_type, tmdb_id)
-    if not tmdb_info or "message" in tmdb_info and tmdb_info["message"].startswith("Error"):
+    info = await get_info(tmdb_type, tmdb_id)
+    if not info or "message" in info and info["message"].startswith("Error"):
         raise HTTPException(status_code=404, detail="TMDB ID not found")
-    exists = await tmdb_col.find_one({"tmdb_id": tmdb_id, "tmdb_type": tmdb_type})
-    if not exist:
-        poster_url = info.get('poster_url')
-        trailer_url = info.get('trailer_url')
-        message = info.get('message')
-        if poster_url and SEND_UPDATES:
-            await safe_api_call(bot.send_photo(
+        
+    poster_path = info.get('poster_path')
+    poster_url = info.get('poster_url')
+    trailer_url = info.get('trailer_url')
+    message_text = info.get('message')
+    name = info.get('title')
+    year = info.get('year')
+    rating = info.get('rating')
+    plot = info.get("plot")
+    imdb_id = info.get("imdb_id")
+    
+    await upsert_tmdb_info(tmdb_id, tmdb_type, poster_path, name, year, rating, plot, trailer_url, imdb_id)
+
+    if SEND_UPDATES and poster_url:
+        keyboard = InlineKeyboardMarkup(
+            [[InlineKeyboardButton("🎥 Trailer", url=trailer_url)]]
+        ) if trailer_url else None
+        
+        await safe_api_call(
+            bot.send_photo(
                 UPDATE_CHANNEL_ID,
                 photo=poster_url,
-                caption=message,
+                caption=message_text,
                 parse_mode=enums.ParseMode.HTML,
                 reply_markup=keyboard
-            ))
-        await tmdb_col.update_one({"tmdb_id": tmdb_id, "tmdb_type": tmdb_type}, {"$set": tmdb_info}, upsert=True)
+            )
+        )
 
     if file_ids:
         for file_id in file_ids:
@@ -148,11 +162,29 @@ async def delete_tmdb_entry(tmdb_id: int, admin_id: int = Depends(get_current_ad
 
 @router.put("/tmdb/{tmdb_id}")
 async def update_tmdb_entry(tmdb_id: int, data: dict, admin_id: int = Depends(get_current_admin)):
+    rating_str = data.get("rating")
+    if rating_str == "":
+        rating = None
+    else:
+        try:
+            rating = float(rating_str)
+        except (ValueError, TypeError):
+            rating = None
+
+    year_str = data.get("year")
+    if year_str == "":
+        year = None
+    else:
+        try:
+            year = int(year_str)
+        except (ValueError, TypeError):
+            year = None
+            
     update_data = {
         "title": data.get("title"),
-        "rating": data.get("rating"),
+        "rating": rating,
         "plot": data.get("plot"),
-        "year": data.get("year")
+        "year": year
     }
     await tmdb_col.update_one({"tmdb_id": tmdb_id}, {"$set": update_data})
     return {"status": "success"}
@@ -161,4 +193,9 @@ async def update_tmdb_entry(tmdb_id: int, data: dict, admin_id: int = Depends(ge
 async def update_file_poster(file_id: str, data: dict, admin_id: int = Depends(get_current_admin)):
     poster_url = data.get("poster_url")
     await files_col.update_one({"_id": ObjectId(file_id)}, {"$set": {"poster_url": poster_url}})
+    return {"status": "success"}
+    
+@router.delete("/files/{file_id}")
+async def delete_file(file_id: str, admin_id: int = Depends(get_current_admin)):
+    await files_col.delete_one({"_id": ObjectId(file_id)})
     return {"status": "success"}
