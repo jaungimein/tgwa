@@ -2,8 +2,9 @@ import re
 from fastapi import APIRouter, Depends, HTTPException, Header, status
 from fastapi.responses import FileResponse
 from db import tmdb_col, files_col
-from utility import is_user_authorized, build_search_pipeline
-from config import OWNER_ID
+from utility import is_user_authorized, build_search_pipeline, safe_api_call
+from config import OWNER_ID, SEND_UPDATES, UPDATE_CHANNEL_ID
+from pyrogram import enums
 from tmdb import get_info
 from app import bot
 from bson.objectid import ObjectId
@@ -118,8 +119,20 @@ async def add_tmdb_entry(data: dict, admin_id: int = Depends(get_current_admin))
     tmdb_info = await get_info(tmdb_type, tmdb_id)
     if not tmdb_info or "message" in tmdb_info and tmdb_info["message"].startswith("Error"):
         raise HTTPException(status_code=404, detail="TMDB ID not found")
-
-    await tmdb_col.update_one({"tmdb_id": tmdb_id, "tmdb_type": tmdb_type}, {"$set": tmdb_info}, upsert=True)
+    exists = await tmdb_col.find_one({"tmdb_id": tmdb_id, "tmdb_type": tmdb_type})
+    if not exist:
+        poster_url = info.get('poster_url')
+        trailer_url = info.get('trailer_url')
+        message = info.get('message')
+        if poster_url and SEND_UPDATES:
+            await safe_api_call(bot.send_photo(
+                UPDATE_CHANNEL_ID,
+                photo=poster_url,
+                caption=message,
+                parse_mode=enums.ParseMode.HTML,
+                reply_markup=keyboard
+            ))
+        await tmdb_col.update_one({"tmdb_id": tmdb_id, "tmdb_type": tmdb_type}, {"$set": tmdb_info}, upsert=True)
 
     if file_ids:
         for file_id in file_ids:
