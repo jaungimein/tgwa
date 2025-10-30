@@ -153,9 +153,9 @@ async def get_info(tmdb_type, tmdb_id):
 
                 return {"message": message, "poster_url": poster_url, "poster_path": poster_path, 
                         "title": title, "rating": rating, "year": release_year, "plot": plot, "trailer_url": trailer_url, "imdb_id": imdb_id}
-    except aiohttp.ClientError as e:
+    except Exception as e:
         logger.error(f"Error fetching TMDB data: {e}")
-    return {"message": f"Error: {str(e)}", "poster_url": None, "poster_path": None}
+        return {"message": f"Error: {str(e)}", "poster_url": None, "poster_path": None}
 
 def truncate_overview(overview):
     """
@@ -167,6 +167,8 @@ def truncate_overview(overview):
     Returns:
     - str: Truncated overview with an ellipsis if it exceeds the limit.
     """
+    if not overview:
+        return None
     MAX_OVERVIEW_LENGTH = 600  # Define your maximum character length for the summary
     if len(overview) > MAX_OVERVIEW_LENGTH:
         return overview[:MAX_OVERVIEW_LENGTH] + "..."
