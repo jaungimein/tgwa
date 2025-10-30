@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Admin</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <style>
+        /* ---------- Base layout ---------- */
+        body {
+            font-family: "Inter", sans-serif;
+            background-color: #121212;
+            color: #f2f2f2;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 15px;
+        }
+
+        h1,
+        h2 {
+            color: #e50914;
+            font-weight: 700;
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        /* ---------- Lists ---------- */
+        ul {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        li {
+            background-color: #1f1f1f;
+            margin: 8px 0;
+            padding: 12px;
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            word-break: break-all;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+
+        /* ---------- Buttons ---------- */
+        button {
+            background-color: #e50914;
+            color: #fff;
+            border: none;
+            border-radius: 20px;
+            padding: 8px 16px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            margin-top: 6px;
+        }
+
+        button:hover {
+            background-color: #f40612;
+            transform: translateY(-1px);
+        }
+
+        button:disabled {
+            background-color: #444;
+            cursor: not-allowed;
+        }
+
+        /* ---------- Inputs & selects ---------- */
+        input,
+        select,
+        textarea {
+            width: 100%;
+            background-color: #1f1f1f;
+            color: #fff;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 8px;
+            margin-bottom: 10px;
+        }
+
+        input::placeholder {
+            color: #bbb;
+        }
+
+        /* ---------- Loader ---------- */
+        .loader {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #e50914;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 15px auto;
+            display: none;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* ---------- Modal ---------- */
+        #edit-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(2px);
+            z-index: 999;
+        }
+
+        #edit-modal .modal-content {
+            background: #1f1f1f;
+            color: white;
+            margin: 15% auto;
+            padding: 20px;
+            border-radius: 15px;
+            max-width: 500px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+        }
+
+        #edit-modal h2 {
+            color: #e50914;
+            text-align: center;
+        }
+
+        /* ---------- Responsive adjustments ---------- */
+        @media (max-width: 480px) {
+            .container {
+                padding: 10px;
+            }
+
+            button {
+                width: 100%;
+                margin-top: 8px;
+            }
+
+            li {
+                font-size: 14px;
+            }
+        }
+    </style>
+
+</head>
+
+<body>
+    <div class="container mt-3">
+        <div id="notification" style="display:none; position:fixed; top:20px; right:20px; padding:15px; border-radius:10px; color:white; font-weight:bold;"></div>
+        <h1>TMDB Management</h1>
+        <div id="loader" class="loader"></div>
+
+        <h2>TMDB Entries</h2>
+        <input type="text" id="tmdb-search" placeholder="Search by title">
+        <ul id="tmdb-list"></ul>
+        <div class="d-flex justify-content-between">
+            <button id="tmdb-prev">Previous</button>
+            <button id="tmdb-next">Next</button>
+        </div>
+
+        <h2>Add TMDB Entry</h2>
+        <input type="text" id="tmdb-id" placeholder="TMDB ID">
+        <select id="tmdb-type">
+            <option value="movie">Movie</option>
+            <option value="tv">Series</option>
+        </select>
+        <button onclick="addTmdbEntry()">Add</button>
+
+        <h2>Files</h2>
+        <input type="text" id="file-search" placeholder="Search files">
+        <ul id="files-list"></ul>
+        <div class="d-flex justify-content-between">
+            <button id="files-prev">Previous</button>
+            <button id="files-next">Next</button>
+        </div>
+
+        <!-- ---------- Modal ---------- -->
+
+        <div id="edit-modal" style="display:none;">
+            <div class="modal-content">
+                <h2>Edit TMDB Entry</h2>
+                <input type="hidden" id="edit-tmdb-id">
+                <label for="edit-title">Title:</label>
+                <input type="text" id="edit-title">
+                <label for="edit-rating">Rating:</label>
+                <input type="text" id="edit-rating">
+                <label for="edit-plot">Plot:</label>
+                <textarea id="edit-plot"></textarea>
+                <label for="edit-year">Year:</label>
+                <input type="text" id="edit-year">
+                <div class="d-flex justify-content-between mt-3">
+                    <button onclick="updateTmdbEntry()">Save</button>
+                    <button onclick="closeModal()" style="background-color:#555;">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="edit-poster-modal" style="display:none;">
+            <div class="modal-content">
+                <h2>Edit Poster URL</h2>
+                <input type="hidden" id="edit-file-id">
+                <label for="edit-poster-url">Poster URL:</label>
+                <input type="text" id="edit-poster-url">
+                <div class="d-flex justify-content-between mt-3">
+                    <button onclick="updateFilePoster()">Save</button>
+                    <button onclick="closePosterModal()" style="background-color:#555;">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="config.js"></script>
+    <script>
+        const loader = document.getElementById('loader');
+        let token = localStorage.getItem('authToken');
+        let tmdbCurrentPage = 1;
+        let filesCurrentPage = 1;
+        let tmdbSearchQuery = '';
+        let fileSearchQuery = '';
+        const selectedFileIds = new Set();
+
+        // 👇 Universal fetch helper
+        async function fetchWithAuth(url, options = {}) {
+            loader.style.display = 'block';
+            try {
+                const response = await fetch(url, {
+                    ...options,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(options.headers || {}),
+                        'Authorization': `Bearer ${token}`,
+                    },
+                });
+
+                if (response.status === 401) {
+                    localStorage.removeItem('authToken');
+                    window.location.href = 'login.html';
+                    return;
+                }
+
+                return response;
+            } catch (err) {
+                console.error('Request failed:', err);
+                throw err;
+            } finally {
+                loader.style.display = 'none';
+            }
+        }
+
+        // ✅ Step 1: Verify authorization
+        async function verifyAuthorization() {
+            if (!token) {
+                // No token saved — go to login
+                window.location.href = 'login.html';
+                return;
+            }
+
+            try {
+                // Ask backend to authorize user
+                const res = await fetch(`${API_BASE_URL}/api/authorize`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: token }),
+                });
+
+                if (!res.ok) {
+                    // Invalid token → redirect to login
+                    localStorage.removeItem('authToken');
+                    window.location.href = 'login.html';
+                    return;
+                }
+
+                // If valid, continue loading data
+                console.log("✅ Authorized successfully.");
+            } catch (err) {
+                console.error('Authorization failed:', err);
+                window.location.href = 'login.html';
+            }
+        }
+
+        // --------------------------
+        // TMDB Functions
+        // --------------------------
+        async function loadTmdbEntries() {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/admin/tmdb?page=${tmdbCurrentPage}&search=${tmdbSearchQuery}`);
+            if (!response || !response.ok) return;
+            const data = await response.json();
+            const list = document.getElementById('tmdb-list');
+            list.innerHTML = '';
+            data.entries.forEach(entry => {
+                const item = document.createElement('li');
+                item.textContent = `${entry.title} (${entry.type}) - ${entry.tmdb_id}`;
+                const deleteButton = document.createElement('button');
+                deleteButton.textContent = 'Delete';
+                deleteButton.onclick = () => deleteTmdbEntry(entry.tmdb_id);
+                item.appendChild(deleteButton);
+
+                const editButton = document.createElement('button');
+                editButton.textContent = 'Edit';
+                editButton.onclick = () => openModal(entry);
+                item.appendChild(editButton);
+
+                list.appendChild(item);
+            });
+            document.getElementById('tmdb-prev').disabled = data.current_page === 1;
+            document.getElementById('tmdb-next').disabled = data.current_page === data.total_pages;
+        }
+
+        async function loadFiles(search = '') {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/admin/files?page=${filesCurrentPage}&search=${search}`);
+            if (!response || !response.ok) return;
+            const data = await response.json();
+            const list = document.getElementById('files-list');
+            list.innerHTML = '';
+            data.files.forEach(file => {
+                const item = document.createElement('li');
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.dataset.fileId = file.id;
+                checkbox.checked = selectedFileIds.has(file.id);
+                checkbox.onchange = () => {
+                    if (checkbox.checked) {
+                        selectedFileIds.add(file.id);
+                    } else {
+                        selectedFileIds.delete(file.id);
+                    }
+                };
+                item.appendChild(checkbox);
+                item.append(` ${file.file_name} (${file.tmdb_id || 'No TMDB ID'})`);
+                
+                const editPosterButton = document.createElement('button');
+                editPosterButton.textContent = 'Edit Poster';
+                editPosterButton.onclick = () => openPosterModal(file);
+                item.appendChild(editPosterButton);
+
+                const deleteButton = document.createElement('button');
+                deleteButton.textContent = 'Delete';
+                deleteButton.onclick = () => deleteFile(file.id);
+                item.appendChild(deleteButton);
+
+                list.appendChild(item);
+            });
+            document.getElementById('files-prev').disabled = data.current_page === 1;
+            document.getElementById('files-next').disabled = data.current_page === data.total_pages;
+        }
+
+        async function addTmdbEntry() {
+            const tmdbId = document.getElementById('tmdb-id').value;
+            const tmdbType = document.getElementById('tmdb-type').value;
+            const selectedFiles = Array.from(selectedFileIds);
+
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/admin/tmdb`, {
+                method: 'POST',
+                body: JSON.stringify({ tmdb_id: tmdbId, tmdb_type: tmdbType, file_ids: selectedFiles })
+            });
+
+            if (response && response.ok) {
+                showNotification('TMDB entry added successfully!');
+                document.getElementById('tmdb-id').value = '';
+                selectedFileIds.clear();
+                loadTmdbEntries();
+                loadFiles(fileSearchQuery);
+            } else {
+                showNotification('Failed to add TMDB entry.', true);
+            }
+        }
+
+        async function deleteTmdbEntry(tmdbId) {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/admin/tmdb/${tmdbId}`, { method: 'DELETE' });
+            if (response && response.ok) {
+                showNotification('TMDB entry deleted successfully!');
+                loadTmdbEntries();
+                loadFiles();
+            } else {
+                showNotification('Failed to delete TMDB entry.', true);
+            }
+        }
+
+        // --------------------------
+        // File Search
+        // --------------------------
+        document.getElementById('file-search').addEventListener('input', (e) => {
+            fileSearchQuery = e.target.value;
+            filesCurrentPage = 1;
+            loadFiles(fileSearchQuery);
+        });
+
+        document.getElementById('tmdb-search').addEventListener('input', (e) => {
+            tmdbSearchQuery = e.target.value;
+            tmdbCurrentPage = 1;
+            loadTmdbEntries();
+        });
+
+        document.getElementById('tmdb-prev').addEventListener('click', () => {
+            if (tmdbCurrentPage > 1) {
+                tmdbCurrentPage--;
+                loadTmdbEntries();
+            }
+        });
+
+        document.getElementById('tmdb-next').addEventListener('click', () => {
+            tmdbCurrentPage++;
+            loadTmdbEntries();
+        });
+
+        document.getElementById('files-prev').addEventListener('click', () => {
+            if (filesCurrentPage > 1) {
+                filesCurrentPage--;
+                loadFiles(fileSearchQuery);
+            }
+        });
+
+        document.getElementById('files-next').addEventListener('click', () => {
+            filesCurrentPage++;
+            loadFiles(fileSearchQuery);
+        });
+
+        function openModal(entry) {
+            document.getElementById('edit-modal').style.display = 'block';
+            document.getElementById('edit-tmdb-id').value = entry.tmdb_id;
+            document.getElementById('edit-title').value = entry.title;
+            document.getElementById('edit-rating').value = entry.rating;
+            document.getElementById('edit-plot').value = entry.plot;
+            document.getElementById('edit-year').value = entry.year;
+        }
+
+        function closeModal() {
+            document.getElementById('edit-modal').style.display = 'none';
+        }
+
+        async function updateTmdbEntry() {
+            const tmdbId = document.getElementById('edit-tmdb-id').value;
+            const data = {
+                title: document.getElementById('edit-title').value,
+                rating: document.getElementById('edit-rating').value,
+                plot: document.getElementById('edit-plot').value,
+                year: document.getElementById('edit-year').value
+            };
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/admin/tmdb/${tmdbId}`, {
+                method: 'PUT',
+                body: JSON.stringify(data)
+            });
+            if (response && response.ok) {
+                showNotification('TMDB entry updated successfully!');
+                closeModal();
+                loadTmdbEntries();
+            } else {
+                showNotification('Failed to update TMDB entry.', true);
+            }
+        }
+
+        // 🚀 Run authorization check on page load
+        verifyAuthorization();
+
+        function showNotification(message, isError = false) {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.style.backgroundColor = isError ? '#e50914' : '#4CAF50';
+            notification.style.display = 'block';
+            setTimeout(() => {
+                notification.style.display = 'none';
+            }, 3000);
+        }
+
+        function openPosterModal(file) {
+            document.getElementById('edit-poster-modal').style.display = 'block';
+            document.getElementById('edit-file-id').value = file.id;
+            document.getElementById('edit-poster-url').value = file.poster_url || '';
+        }
+
+        function closePosterModal() {
+            document.getElementById('edit-poster-modal').style.display = 'none';
+        }
+
+        async function updateFilePoster() {
+            const fileId = document.getElementById('edit-file-id').value;
+            const posterUrl = document.getElementById('edit-poster-url').value;
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/admin/files/${fileId}`, {
+                method: 'PUT',
+                body: JSON.stringify({ poster_url: posterUrl })
+            });
+            if (response && response.ok) {
+                showNotification('File poster updated successfully!');
+                closePosterModal();
+                loadFiles(fileSearchQuery);
+            } else {
+                showNotification('Failed to update file poster.', true);
+            }
+        }
+
+        async function deleteFile(fileId) {
+            if (!confirm('Are you sure you want to delete this file?')) {
+                return;
+            }
+            try {
+                const response = await fetchWithAuth(`${API_BASE_URL}/api/admin/files/${fileId}`, {
+                    method: 'DELETE'
+                });
+                if (response && response.ok) {
+                    showNotification('File deleted successfully!');
+                    loadFiles(fileSearchQuery);
+                } else {
+                    showNotification('Failed to delete file.', true);
+                }
+            } catch (error) {
+                console.error('Error deleting file:', error);
+                showNotification('An unexpected error occurred while deleting the file.', true);
+            }
+        }
+    </script>
+    </div>
+</body>
+</html>
